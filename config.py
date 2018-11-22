@@ -5,7 +5,7 @@ from os.path import join
 
 ### DIRECTORIES ###
 
-PROJECT_DIR = os.path.expanduser('~/Documents/Year 4/marsnet.nosync')
+PROJECT_DIR = os.path.expanduser('~/Documents/Year 4/marsnet')
 DATA_DIR = join(PROJECT_DIR, 'data.nosync')
 LOG_DIR = join(DATA_DIR, 'logs')
 
