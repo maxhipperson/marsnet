@@ -8,11 +8,12 @@ import sklearn
 import numpy as np
 import matplotlib.pyplot as plt
 import envi_header
-from sklearn.cluster import SpectralClustering, KMeans
+from sklearn.cluster import KMeans, SpectralClustering, AgglomerativeClustering, DBSCAN, Birch
 from time import time
 # import seaborn as sns
 # sns.set()
 # from matplotlib.colors import ListedColormap
+
 
 def rescale_array(array):
 
@@ -42,8 +43,10 @@ hdr_filename = image_id + '_07_if166j_mtr3.hdr'
 hdr_filepath = os.path.join(cfg.DATA_DIR, hdr_filename)
 header = envi_header.read_hdr_file(hdr_filepath)
 
-print('\nLoaded {}'.format(hdr_filename))
-print('\twavelength units - {}'.format(header['wavelength units']))
+print('\nLoaded {}:'.format(hdr_filename))
+for key in sorted(header.keys()):
+    print('\t{}'.format(key))
+print('\n\twavelength units - {}'.format(header['wavelength units']))
 print('\tdata ignore value - {}'.format(header['data ignore value']))
 
 # read tiff file
@@ -77,33 +80,41 @@ im = hs.signals.Signal1D(img, axes=[axes_y, axes_x, axes_ch])
 print('\n', im.axes_manager)
 
 # Set wavelength bounds to crop the spectrum to
-crop_spectra = True
-# crop_spectra = False
 
+#
 # im.plot()
 # plt.show()
 
-if crop_spectra:
-    
-    lower = 1000
-    upper = 2800
-    
-    # find the index of the boundary wavelengths in the header
-    wavelength = np.array(header['wavelength'])
-    lower_index = np.argmax(wavelength >= lower)
-    upper_index = np.argmax(wavelength > upper) - 1
-    
-    # crop the signal to the specified range
-    im.crop_signal1D(lower_index, upper_index)
-    
-    # crop to central section of image
-    im.crop('x', 120, 650)
-    im.crop('y', 120, 650)
+#crop signal to wavelength range
+lower = 1000
+upper = 2800
 
-    print('\nImage cropped!')
-    print('\n', im.axes_manager)
+# find the index of the boundary wavelengths in the header
+wavelength = np.array(header['wavelength'])
+lower_index = np.argmax(wavelength >= lower)
+upper_index = np.argmax(wavelength > upper) - 1
+
+# crop the signal to the specified range
+im.crop_signal1D(lower_index, upper_index)
+
+# crop to central section of image
+# im.crop('x', 120, 650)
+# im.crop('y', 120, 650)
+
+# im.crop('x', 200, 210)
+# im.crop('y', 200, 210)
+
+print('\nImage cropped for cluster identification')
+
+im_cluster = im.inav[310:330, 470:490]
+im = im.inav[120:650, 120:650]
+
+print('\n', im_cluster.axes_manager)
 
 im.plot()
+plt.show()
+
+im_cluster.plot()
 plt.show()
 
 
@@ -151,92 +162,97 @@ if do_PCA:
 # Spectral Clustering #
 #######################
 
-print('\nExtracting data and reshaping array')
-
-data = im.data
-old_shape = data.shape
-print('Image array shape - {}'.format(old_shape))
-
-y, x, ch = old_shape
-
 n_clusters = 10  # TODO add user input
 print('Number of clusters - {}'.format(n_clusters))
 
-# get clusters
+algorithms = {
+    'KMeans': KMeans,
+    'SpectralClustering': SpectralClustering,
+    'AgglomerativeClustering': AgglomerativeClustering,
+    # 'DBSCAN': DBSCAN,
+    'Birch': Birch
+}
 
-# flatten the data
-flat = np.reshape(data, (x*y, ch))
-print('Flattened array shape - {}'.format(flat.shape))
+print('\nExtracting data and reshaping array')
 
-# for i in range(old_shape[0]):
-#     y = i
-#     for j in range(old_shape[1]):
-#         x = j
-#         
-#         old_spectrum = data[i, j, :]
-#         new_spectrum = flat[y * old_shape[0] + x, :]
-#         
-#         issame = np.array_equal(old_spectrum, new_spectrum)
-#         if not issame:
-#             print('AHHHH')
+cluster_train = im_cluster.data
+y, x, ch = cluster_train.shape
+print('Image array shape - {}'.format(cluster_train.shape))
 
-# rescale each spectrum
+# flatten data and rescale spectra
+flat = np.reshape(cluster_train, (x*y, ch))
 flat -= flat.mean(axis=1, keepdims=True)
 flat /= flat.std(axis=1, keepdims=True)
+# print('Flattened array shape - {}'.format(flat.shape))
 
-# Spectral clustering
-# print('Running Spectral clustering...')
-# start = time()
-# sc_label_arr = SpectralClustering(n_clusters=n_clusters,
-#                                # assign_labels='discretize',  # TODO set to different method
-#                                n_jobs=-1).fit_predict(flat)
-# print('Spectral clustering done - runtime - {:f}s'.format(time() - start))
-#
-# sc_label_arr = sc_label_arr.reshape((y, x))
-# print('Label array shape - {}'.format(sc_label_arr.shape))
-sc_label_arr = np.zeros((y, x))
+label_arr = {}
+for key in algorithms.keys():
 
-# K-Means clustering
-print('Running K-Means Clustering...')
-start = time()
-km_label_arr = KMeans(n_clusters=n_clusters,
-                       n_jobs=-1).fit_predict(flat)
+    print('Running {}...'.format(key))
+    start = time()
+    algorithms[key] = algorithms[key](n_clusters=n_clusters)
+    label_arr[key] = algorithms[key].fit_predict(X=flat)
+    print('{} done - runtime - {:f}s'.format(key, time() - start))
+    label_arr[key] = label_arr[key].reshape((y, x))
+    print(label_arr[key].shape)
 
-print('K-Means done - runtime - {:f}s'.format(time() - start))
-
-km_label_arr = km_label_arr.reshape((y, x))
-print('Label array shape - {}'.format(km_label_arr.shape))
-
-# plt.figure()
-# plt.imshow(label_arr)
-# plt.show()
-
-# label_max = np.max(label_arr)
-# label_cube = np.zeros((x, y, label_max + 1))
-#
-# for i in range(label_max + 1):
-#     label_cube[:, :, i][i == label_arr] = 1
-
-# label_mask = np.sum(label_cube, axis=2)
-
-# plot mean image and label array
-fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(10, 8))
+# plot mean image and label array from clustering
+fig, axes = plt.subplots(1, len(label_arr) + 1, figsize=(15, 10))
 fig.suptitle('Plots')
 
-ax1.set_title('Mean plot')
-im1 = ax1.imshow(plot_mean_img(data))
-fig.colorbar(im1, ax=ax1)
+axes[0].set_title('Mean')
+axes[0].imshow(plot_mean_img(cluster_train))
+# fig.colorbar(im, ax=ax1)
 
-ax2.set_title('Spectral')
-ax2.imshow(plot_mean_img(data), alpha=0.4)
-im2 = ax2.imshow(sc_label_arr, cmap='Set1', alpha=0.4)
+for i, (key, array) in enumerate(label_arr.items()):
 
-ax3.set_title('K means')
-ax3.imshow(plot_mean_img(data), alpha=0.4)
-im3 = ax3.imshow(km_label_arr, cmap='Set1', alpha=0.4)
-# fig.colorbar(im3, ax=ax3)
+    axes[i + 1].set_title(key)
+    axes[i + 1].imshow(plot_mean_img(cluster_train))
+    axes[i + 1].imshow(array, cmap='Set1', alpha=0.4)
 
 plt.tight_layout()
-plt.subplots_adjust(top=0.85)
+plt.subplots_adjust(top=0.95)
+plt.show()
+
+#####################################################
+# predict clustering and plot mean image and labels #
+#####################################################
+print('\nExtracting data and reshaping array')
+
+cluster_test = im.data
+y, x, ch = cluster_test.shape
+print('Image array shape - {}'.format(cluster_test.shape))
+
+# flatten data and rescale spectra
+flat = np.reshape(cluster_test, (x*y, ch))
+flat -= flat.mean(axis=1, keepdims=True)
+flat /= flat.std(axis=1, keepdims=True)
+# print('Flattened array shape - {}'.format(flat.shape))
+
+label_arr = {}
+
+for key in algorithms.keys():
+    print('Running {}...'.format(key))
+    start = time()
+    label_arr[key] = algorithms[key].predict(X=flat)
+    print('{} done - runtime - {:f}s'.format(key, time() - start))
+    label_arr[key] = label_arr[key].reshape((y, x))
+    print(label_arr[key].shape)
+
+# plot mean image and label array from clustering
+fig, axes = plt.subplots(1, len(label_arr) + 1, figsize=(15, 10))
+fig.suptitle('Plots')
+
+axes[0].set_title('Mean')
+axes[0].imshow(plot_mean_img(cluster_test))
+# fig.colorbar(im, ax=ax1)
+
+for i, (key, array) in enumerate(label_arr.items()):
+    axes[i + 1].set_title(key)
+    axes[i + 1].imshow(plot_mean_img(cluster_test))
+    axes[i + 1].imshow(array, cmap='Set1', alpha=0.4)
+
+plt.tight_layout()
+plt.subplots_adjust(top=0.95)
 plt.show()
 
