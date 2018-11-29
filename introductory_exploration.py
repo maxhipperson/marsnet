@@ -79,13 +79,16 @@ axes_ch = {'name': 'wavelength band', 'size': ch, 'units': 'index'}
 im = hs.signals.Signal1D(img, axes=[axes_y, axes_x, axes_ch])
 print('\n', im.axes_manager)
 
-# Set wavelength bounds to crop the spectrum to
-
-#
 # im.plot()
 # plt.show()
 
-#crop signal to wavelength range
+
+#########################
+# Crop signal and image #
+#########################
+
+
+# wavelength range to crop to in nm
 lower = 1000
 upper = 2800
 
@@ -94,20 +97,20 @@ wavelength = np.array(header['wavelength'])
 lower_index = np.argmax(wavelength >= lower)
 upper_index = np.argmax(wavelength > upper) - 1
 
-# crop the signal to the specified range
+# crop the signal to the index range from header
 im.crop_signal1D(lower_index, upper_index)
-
-# crop to central section of image
-# im.crop('x', 120, 650)
-# im.crop('y', 120, 650)
-
-# im.crop('x', 200, 210)
-# im.crop('y', 200, 210)
 
 print('\nImage cropped for cluster identification')
 
-im_cluster = im.inav[310:330, 470:490]
-im = im.inav[120:650, 120:650]
+# crop image for clustering
+# im_cluster = im.inav[310:330, 470:490]  # 20 x 20
+im_cluster = im.inav[290:350, 450:510]  # 60 x 60
+# im_cluster = im.inav[270:370, 430:530]  # 100 x 100
+# im_cluster = im.inav[250:390, 410:550]  # 140 x 140
+# im_cluster = im.inav[120:650, 120:650]  #
+
+# crop image
+# im = im.inav[120:650, 120:650]
 
 print('\n', im_cluster.axes_manager)
 
@@ -121,13 +124,17 @@ plt.show()
 ###############
 # PCA and ICA #
 ###############
+# todo pca then reconstruct signal from pca componants and run clustering
 
 
-# do_PCA = True
-do_PCA = False
+do_PCA = True
+# do_PCA = False
 
-# do_ICA = True
-do_ICA = False
+do_ICA = True
+# do_ICA = False
+
+# reconstruct_signal = True
+reconstruct_signal = False
 
 if do_PCA:
 
@@ -143,6 +150,19 @@ if do_PCA:
     # im.plot_decomposition_factors()
     # im.plot_decomposition_loadings()
     # plt.show()
+
+    # combine the pca componants into a signal to perform clustering
+    if reconstruct_signal:
+
+        n_componants = 10
+        pca_componants = im.get_decomposition_loadings()
+
+        # sel;ect signal componants
+
+        # build signal
+
+        #
+
 
     if do_ICA:
 
@@ -162,13 +182,13 @@ if do_PCA:
 # Spectral Clustering #
 #######################
 
-n_clusters = 10  # TODO add user input
-print('Number of clusters - {}'.format(n_clusters))
+n_clusters = 12  # TODO add user input?
+print('\nNumber of clusters - {}'.format(n_clusters))
 
 algorithms = {
     'KMeans': KMeans,
     'SpectralClustering': SpectralClustering,
-    'AgglomerativeClustering': AgglomerativeClustering,
+    # 'AgglomerativeClustering': AgglomerativeClustering,
     # 'DBSCAN': DBSCAN,
     'Birch': Birch
 }
@@ -214,9 +234,12 @@ plt.tight_layout()
 plt.subplots_adjust(top=0.95)
 plt.show()
 
+
 #####################################################
 # predict clustering and plot mean image and labels #
 #####################################################
+
+
 print('\nExtracting data and reshaping array')
 
 cluster_test = im.data
@@ -255,4 +278,3 @@ for i, (key, array) in enumerate(label_arr.items()):
 plt.tight_layout()
 plt.subplots_adjust(top=0.95)
 plt.show()
-

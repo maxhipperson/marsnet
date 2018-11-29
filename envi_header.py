@@ -150,37 +150,3 @@ def read_hdr_file(filename):
 
     return dict
 
-# def write_envi_header(filename, header_dict):
-#     """
-#     Writes a dictionary to an ENVI header file
-#     Comments can be added to the end of the file using the '_comments' key.
-#     """
-#
-#     # Open header file for writing
-#     try:
-#         hdrfile = open(filename, "w")
-#     except:
-#         raise IOError("Could not open hdr file {}. ".format(filename))
-#
-#     hdrfile.write("ENVI\n")
-#     for key in header_dict.keys():
-#         # Check not comments key (will write separately)
-#         if key != "_comments":
-#             # If it contains commas likely a list so put in curly braces
-#             if str(header_dict[key]).count(',') > 0:
-#                 hdrfile.write("{} = {{{}}}\n".format(key, header_dict[key]))
-#             else:
-#                 # Write key at start of line
-#                 hdrfile.write("{} = {}\n".format(key, header_dict[key]))
-#
-#     # Write out comments at the end
-#     # Check they start with ';' and add one if they don't
-#     for comment_line in header_dict['_comments'].split('\n'):
-#         if re.search("^;", comment_line) is None:
-#             comment_line = ";{}\n".format(comment_line)
-#         else:
-#             comment_line = "{}\n".format(comment_line)
-#         # Check line contains a comment before writing out.
-#         if comment_line.strip() != ";":
-#             hdrfile.write(comment_line)
-#     hdrfile.close()
