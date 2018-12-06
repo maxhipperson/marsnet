@@ -13,7 +13,7 @@ SITE_DIR = join(DATA_DIR, '')
 # SITE_DIR = join(DATA_DIR, '')
 # SITE_DIR = join(DATA_DIR, '')
 
-### TRAINING ###
+### TRAINING ###z
 
 MODEL = ''
 MODEL_NAME = ''
