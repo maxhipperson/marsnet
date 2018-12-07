@@ -2,7 +2,19 @@ import os
 import hyperspy.api as hs
 from skimage import io
 import numpy as np
+from functools import wraps
+from time import time
 
+def timeit(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        print('\nRunning {}...\n'.format(f.__name__))
+        start = time()
+        result = f(*args, **kwargs)
+        end = time()
+        print('\nElapsed time for {}: {:f}s\n'.format(f.__name__, end - start))
+        return result
+    return wrapper
 
 def read_hdr_file(filename):
     """
