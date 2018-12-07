@@ -20,202 +20,224 @@ import hdbscan
 class Cube(object):
     def __init__(self):
 
-        dir = '/Users/maxhipperson/Documents/Year 4/marsnet/data.nosync'
+        src_dir = '/Users/maxhipperson/Documents/Year 4/marsnet/data.nosync'
 
         # river basin
         hdr_name = 'frt00003bfb_07_if166j_mtr3.hdr'
-        cube_name = 'frt00003bfb_data_cube.tif'
+        im_name = 'frt00003bfb_data_cube.tif'
+        x, y = (110, 690), (120, 760)  # 580 x 640 - centre = (400. 440)
 
         # # crater
         # hdr_name = 'frt00009a16_07_if166j_mtr3.hdr'
         # cube_name = 'frt00009a16_data_cube.tif'
 
-        hdr_path = os.path.join(dir, hdr_name)
-        cube_path = os.path.join(dir, cube_name)
+        hdr_path = os.path.join(src_dir, hdr_name)
+        im_path = os.path.join(src_dir, im_name)
 
-        self.read_data_cube(hdr_path, cube_path)
-        self.crop_signal(lower=1000, upper=2800)
+        self.hdr = read_hdr_file(hdr_path)
+        self.im = self.read_cube(im_path)
 
-        self.im.plot()
-        plt.show()
+        print('Loaded {}:'.format(hdr_path))
+        print('Loaded {}'.format(im_path))
 
-        # crop image for clustering
-        # self.im = self.im.inav[310:330, 470:490]  # 20 x 20
-        # self.im = self.im.inav[290:350, 450:510]  # 60 x 60
-        # self.im = self.im.inav[270:370, 430:530]  # 100 x 100
-        # self.im = self.im.inav[250:390, 410:550]  # 140 x 140
-        # self.im = self.im.inav[220:420, 380:580]  # 200 x 200
-        # self.im = self.im.inav[180:480, 330:630] #
-        # self.im = self.im.inav[120:650, 120:650]  #
+        # self.plot(self.im)
 
-        # set centre of image
-        im_centre = (400, 400)
+        # Restrict wavelength range
+        # lower, upper = 1000, 2800
+        # lower, upper = 1000, 2800
+        lower, upper = None, 2800
+        # lower, upper = 1000, None
 
-        # set size of image in pixels
-        # size = 500
-        # size = 400
-        # size = 300
-        # size = 200
-        size = 100
-        # size = 50
-        # size = 20
-        # size = 10
+        # Crop signal to wavelength or index range
+        self.crop_signal(lower=lower, upper=upper)
+        # self.plot(self.im)
 
-        self.im = self.im.inav[im_centre[0]-size/2:im_centre[0]+size/2, im_centre[1]-size/2:im_centre[1]+size/2]
+        # 'frt00009a16_data_cube.tif'
+        # Set size of image to crop to (in pixels)
+        self.im = self.im.inav[x[0]:x[1], y[0]:y[1]]
 
-        # maximum crop of image
-        # self.im = self.im.inav[110:690, 120:760]  # 580 x 640 - centre = (400. 440)
-        # self.im = self.im.inav[150:650, 190:690]  # 500 x 500
-        # self.im = self.im.inav[200:600, 240:640]  # 400 x 400
-        # self.im = self.im.inav[250:550, 290:590]  # 300 x 300
-        # self.im = self.im.inav[300:500, 340:540]  # 200 x 200
-        # self.im = self.im.inav[350:450, 390:490]  # 100 x 100
-        # self.im = self.im.inav[375:425, 415:465]  # 50 x 50
-        # self.im = self.im.inav[390:410, 430:450]  # 20 x 20
-        # self.im = self.im.inav[395:405, 435:445]  # 10 x 10
+        print(self.im.axes_manager)
+        self.plot(self.im)
 
+        #######################################################
+        # Decomposition
 
-        self.im.plot()
-        plt.show()
+        # self.n_components_ica = None
+        self.n_components_ica = 14
 
-        self.Z = self.im.data
+        # self.n_components_model = None
+        # self.n_components_model = 14
+        self.n_components_model = [0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13]
+
+        self.signal_model = None
+
+        # plot = True
+        plot = False
+
+        # self.run_pca(plot)
+        # self.run_ica(plot)
+        # self.signal_model = self.build_signal_from_decomposition()
+
+        #######################################################
+        # Crop image
+
+        # Set signal for analyis
+        if self.signal_model is not None:
+            self.signal = self.signal_model.copy()
+        else:
+            self.signal = self.im.copy()
+
+        # new_size = 10
+        # new_size = 20
+        # new_size = 50
+        # new_size = 100
+        new_size = 200
+        # new_size = 300
+        # new_size = 400
+        # new_size = 500
+
+        x_mid = (x[0] + x[1]) / 2
+        y_mid = (y[0] + y[1]) / 2
+        x_min = x_mid - new_size / 2
+        x_max = x_mid + new_size / 2
+        y_min = y_mid - new_size / 2
+        y_max = y_mid + new_size / 2
+
+        self.signal = self.signal.inav[x_min:x_max, y_min:y_max]
+        print(self.signal.axes_manager)
+        self.plot(self.signal)
+
+        #######################################################
+        # Set data
+
+        self.Z = self.signal.data
         self.y, self.x, self.ch = self.Z.shape
 
-        #################
-        # Decomposition #
-        #################
+        #######################################################
+        # Clustering
 
-        # n_components = [0, 1, 2, 4, 5, 6, 7]  # 'frt00009a16_data_cube.tif'
-        # n_components = 9  # 'frt00009a16_data_cube.tif'
-        # n_components = 12
+        self.label_arr = None
+        self.cluster_arr = self.preprocess_clustering()
 
-        # self.run_pca()
-        # self.run_ica(n_components)
-        # self.build_signal_from_decomposition(n_components)
+        #######################################################
+        # K-Means
 
-        ##############
-        # Clustering #
-        ##############
+        n_clusters = self.plot_elbow()
+        # n_clusters = 4
+        # n_clusters = 8
+        n_clusters = [2, 3, 4, 6, 8]
 
-        self.preprocess_clustering()
+        savefig = True
 
-        #####################
-        # Scikit clustering #
-        #####################
+        savedir = '/Users/maxhipperson/Documents/Year 4/marsnet/results/frt00003bfb/no_decomposition'
+        # self.savedir = '/Users/maxhipperson/Documents/Year 4/marsnet/results/frt00003bfb/pca_model'
+        # self.savedir = '/Users/maxhipperson/Documents/Year 4/marsnet/results/frt00003bfb/ica_model'
 
-        # DBSCAN
+        for n in n_clusters:
+            savename = 'K-Means_clustering.imsize_{}.nclusters_{}.png'.format(new_size, n)
+            savepath = os.path.join(savedir, savename)
 
-
-        ################
-        # Pyclustering #
-        ################
-
-        # n_clusters = self.run_elbow()
-        # n_cluststers = 3
-        n_clusters = 4
-
-        label_arr = self.k_means(n_clusters)
-        self.plot_mean_and_mask(label_arr, 'K-Means, n_clusters: {}'.format(n_clusters))
+            self.label_arr = self.k_means(n)
+            self.plot_mean_and_mask(label_arr_title='K-Means, n_clusters: {}'.format(n),
+                                    save=savefig, savepath=savepath)
 
         # n_initial = 8
         # n_max = 20
         # label_arr = self.x_means(n_initial, n_max)
         # self.plot_mean_and_mask(label_arr, 'X-means')
 
-        ############
-        # HBDBSCAN #
-        ############
+        #######################################################
+        # HBDBSCAN
 
         # label_arr = self.hdbscan()
         # self.plot_mean_and_mask(label_arr, 'HBDBSCAN')
 
-        ##########
-        # FITSNE #
-        ##########
+        #######################################################
+        # FITSNE
 
-        # self.run_tsne()
-        self.run_tsne(labels=np.reshape(label_arr.copy(), (self.x * self.y)))
+        # self.tsne()
 
-    @timeit
-    def read_data_cube(self, hdr_path, img_path):
-        """
-        Reads a .tif data cube and a header file in from the paths specified.
+    def read_cube(self, im_path):
+        """ Reads a .tif data cube and a header file in from the paths specified. """
 
-        :param hdr_path:
-        :param img_path:
-        :return:
-        """
-
-        hdr = read_hdr_file(hdr_path)
-        im = io.imread(img_path)
-
-        print('Loaded {}:'.format(hdr_path))
-        print('Loaded {}'.format(img_path))
-
-        c, w, h = im.shape
+        im = io.imread(im_path)
         im = im.transpose(1, 2, 0)
-
-        # remove ignored values
-        im[im == hdr['data ignore value']] = 0
-
         (y, x, ch) = im.shape
 
+        # remove ignored values
+        im[im == self.hdr['data ignore value']] = 0
+
+        # set the hyperspy axis parameters
         axes_x = {'name': 'x', 'size': x, 'units': 'px'}
         axes_y = {'name': 'y', 'size': y, 'units': 'px'}
         axes_ch = {'name': 'wavelength band', 'size': ch, 'units': 'index'}
 
         # convert image to signal object
         im = hs.signals.Signal1D(im, axes=[axes_y, axes_x, axes_ch])
-        print(im.axes_manager)
 
-        self.im = im
-        self.hdr = hdr
+        return im
 
-    def crop_signal(self, lower, upper):
+    @staticmethod
+    def plot(im):
+        im.plot()
+        plt.show()
+
+    def crop_signal(self, lower, upper, limit_type='wavelength'):
         """ Crops the signal to a wavelength range by indexing from the header file. """
 
         # find the index of the boundary wavelengths in the header
-        wavelength = np.array(self.hdr['wavelength'])
-        lower_index = np.argmax(wavelength >= lower)
-        upper_index = np.argmax(wavelength > upper) - 1
+        if limit_type == 'wavelength':
+            wavelength = np.array(self.hdr['wavelength'])
+
+            if lower is None:
+                lower_index = None
+            else:
+                lower_index = np.argmax(wavelength >= lower)
+
+            if upper is None:
+                upper_index = None
+            else:
+                upper_index = np.argmax(wavelength > upper) - 1
+
+        else:
+            lower_index = lower
+            upper_index = upper
 
         # crop the signal to the index range from header
         self.im.crop_signal1D(lower_index, upper_index)
 
-        print('Cropped signal to {} - {} {}'.format(lower, upper, self.hdr['wavelength units']))
-        print(self.im.axes_manager)
+        print('Cropped signal')
+        print('wavelength: {} - {}'.format(lower, upper, self.hdr['wavelength units']))
+        print('index: {} - {}'.format(lower_index, upper_index))
 
-    @timeit
-    def run_pca(self):
+    def run_pca(self, plot=True):
 
         self.im.decomposition()
         self.im.learning_results.summary()
 
-        self.im.plot_explained_variance_ratio(threshold=0.00001)
-        plt.show()
+        if plot:
+            self.im.plot_explained_variance_ratio(threshold=0.00001)
+            plt.show()
+            self.im.plot_decomposition_results()
+            plt.show()
 
-        self.im.plot_decomposition_results()
-        plt.show()
+    def run_ica(self, plot=True):
 
-    @timeit
-    def run_ica(self, n_components):
-
-        self.im.blind_source_separation(number_of_components=n_components)
+        self.im.blind_source_separation(self.n_components_ica)
         self.im.learning_results.summary()
 
-        self.im.plot_bss_results()
-        plt.show()
+        if plot:
+            self.im.plot_bss_results()
+            plt.show()
 
-    @timeit
-    def build_signal_from_decomposition(self, n_components):
+    def build_signal_from_decomposition(self):
         """ Builds a model of the signal from specified components - integer or list of integers. """
 
-        self.signal_model = self.im.get_decomposition_model(n_components)
-
-        self.signal_model.plot()
+        signal_model = self.im.get_decomposition_model(self.n_components_model)
+        signal_model.plot()
         plt.show()
 
-        self.Z = self.signal_model.data
+        return signal_model
 
     @staticmethod
     def rescale_array(arr, axis=1):
@@ -226,74 +248,107 @@ class Cube(object):
 
         return arr
 
-    @staticmethod
-    def plot_mean(arr):
-        """  """
-
-        arr = np.sum(arr, axis=2)
-        arr -= np.mean(arr)
-        arr /= np.std(arr)
-
-        return arr
-
-    def plot_mean_and_mask(self, label_arr, label_arr_title='Labels'):
+    def plot_mean_and_mask(self, data=None, label_arr=None, label_arr_title='Labels', save=False, savepath='fig.png'):
         """ Plots the mean image from 3D array and the mean image with an overlay. """
+
+        if data is None:
+            data = self.Z.copy()
+
+        if label_arr is None:
+            label_arr = self.label_arr.copy()
+
+        data = np.sum(data, axis=2)
+        data -= np.mean(data)
+        data /= np.std(data)
 
         fig, axes = plt.subplots(1, 2, figsize=(8, 6))
         # fig.suptitle('')
 
         axes[0].set_title('Mean')
-        axes[0].y_label('pixels / px')
-        axes[0].x_label('pixels / px')
-        axes[0].imshow(self.plot_mean(self.Z))
+        axes[0].set_ylabel('pixels / px')
+        axes[0].set_xlabel('pixels / px')
+        axes[0].imshow(data)
 
         axes[1].set_title(label_arr_title)
-        axes[1].y_label('pixels / px')
-        axes[1].x_label('pixels / px')
-        axes[1].imshow(self.plot_mean(self.Z))
-        axes[1].imshow(label_arr, cmap='Set1', alpha=0.4)
+        axes[1].set_ylabel('pixels / px')
+        axes[1].set_xlabel('pixels / px')
+        axes[1].imshow(data)
+        axes[1].imshow(label_arr, cmap='Set1', alpha=0.3)
 
         plt.tight_layout()
         # plt.subplots_adjust(top=0.95)
+        if save:
+            fig.savefig(savepath)
+
         plt.show()
+
 
     def preprocess_clustering(self):
 
         # flatten data and rescale spectra
         cluster_arr = np.reshape(self.Z.copy(), (self.x * self.y, self.ch))
-        self.cluster_arr = self.rescale_array(cluster_arr)
+        cluster_arr = self.rescale_array(cluster_arr)
 
-        print('Flattened array shape: {}'.format(self.cluster_arr.shape))
+        print('Flattened array shape: {}'.format(cluster_arr.shape))
+
+        return cluster_arr
+
 
     def rearrange_clusters_into_label_arr(self, clusters):
 
         # Only needed to rearrange the pyclustering label outut!
-
         print('Number of clusters: {}'.format(len(clusters)))
 
         label_arr = np.zeros((self.cluster_arr.shape[0]))
 
-        for cluster_id, list in enumerate(clusters):
-            for index in list:
+        for cluster_id, spectra_list in enumerate(clusters):
+            for index in spectra_list:
                 label_arr[index] = cluster_id
-
-        print('Flattened label array shape: {}'.format(label_arr.shape))
 
         label_arr = label_arr.reshape((self.y, self.x))
 
         return label_arr
 
-    def run_silhouette(self):
-        raise NotImplementedError
 
     @timeit
-    def run_elbow(self):
+    def k_means(self,  n_clusters=None):
 
+        data = self.cluster_arr
+
+        # initialize centers
+        initial_centers = kmeans_plusplus_initializer(data, n_clusters).initialize()
+
+        # create instance of K-Means with centers
+        kmeans_instance = kmeans(data, initial_centers)
+        kmeans_instance.process()
+
+        # get clusters and process into label_arr
+        clusters = kmeans_instance.get_clusters()
+        centers = kmeans_instance.get_centers()
+
+        label_arr = self.rearrange_clusters_into_label_arr(clusters)
+
+        # temp
+
+        # spectra = [[self.cluster_arr[index] for index in spectra_list] for spectra_list in clusters]
+        # spectra_arr = [np.array(f) for f in spectra]
+        # mean_spectra = [np.mean(f, axis=0) for f in spectra_arr]
+        #
+        # plt.figure()
+        # for spectrum in mean_spectra:
+        #     plt.plot(range(spectrum.size), spectrum)
+        # plt.show()
+
+        return label_arr
+
+
+    @timeit
+    def plot_elbow(self):
         # set k range
         kmin = 1
         kmax = 15
 
-        elbow_instance = elbow(self.cluster_arr, kmin, kmax, ccore=False)
+        elbow_instance = elbow(self.cluster_arr, kmin, kmax)
         elbow_instance.process()
 
         amount_clusters = elbow_instance.get_amount()  # most probable amount of clusters
@@ -303,72 +358,40 @@ class Cube(object):
         x = range(kmin, kmax)
 
         plt.figure(figsize=(5, 5))
-        plt.title('Elbow plot: {} - {} clusters'.format(kmin, kmax))
+        plt.title('Elbow plot, {} - {} clusters'.format(kmin, kmax))
         plt.ylabel('wce')
         plt.xlabel('k')
         plt.plot(x, wce, marker='x', linewidth=1)
-        plt.plot(amount_clusters, wce[amount_clusters-1], marker='x', c='r')
+        plt.plot(amount_clusters, wce[amount_clusters - 1], marker='x', c='r')
         plt.tight_layout()
         plt.show()
 
         return amount_clusters
 
     @timeit
-    def k_means(self,  n_clusters):
+    def tsne(self, data=None, label_arr=None):
 
-        # initialize initial centers using K-Means++ method
-        initial_centers = kmeans_plusplus_initializer(self.cluster_arr, n_clusters).initialize()
+        if data is None:
+            data = self.cluster_arr.astype(np.double)
 
-        # create instance of K-Means algorithm with prepared centers
-        kmeans_instance = kmeans(self.cluster_arr, initial_centers, ccore=False)
-        kmeans_instance.process()
+        if self.cluster_arr is not None:
+            label_arr = np.reshape(self.label_arr.copy(), (self.x * self.y))
 
-        clusters = kmeans_instance.get_clusters()
-        label_arr = self.rearrange_clusters_into_label_arr(clusters)
+        out = fitsne.FItSNE(data)
 
-        return label_arr
-
-    @timeit
-    def x_means(self, n_initial, n_max):
-
-        initial_centers = kmeans_plusplus_initializer(self.cluster_arr, n_initial).initialize()
-
-        # Create instance of X-Means algorithm.
-        xmeans_instance = xmeans(self.cluster_arr, initial_centers, kmax=n_max, ccore=False)
-        xmeans_instance.process()
-
-        clusters = xmeans_instance.get_clusters()
-        label_arr = self.rearrange_clusters_into_label_arr(clusters)
-
-        return label_arr
-
-    def run_tsne(self, labels=None):
-        # todo add probabilities to cluster alpha
-
-        print('Running fitsne...')
-
-        Z = fitsne.FItSNE(self.cluster_arr.astype(np.double))
-
-        plt.figure(figsize=(5, 5))
-        if labels is not None:
-            plt.scatter(Z[:, 0], Z[:, 1], s=1, alpha=0.3, c=labels, cmap='Set1')
-        else:
-            plt.scatter(Z[:, 0], Z[:, 1], s=1, alpha=0.3)
+        plt.figure(figsize=(10, 10))
+        plt.scatter(out[:, 0], out[:, 1], s=1, alpha=0.3, c=label_arr, cmap='Set1')
         plt.tight_layout()
         plt.show()
 
-    def DBSCAN(self):
-        raise NotImplementedError
 
     @timeit
     def hdbscan(self):
 
-        clusterer = hdbscan.HDBSCAN(
-            min_cluster_size=3,  # primary parameter
-            min_samples=2,
-            metric='euclidean',
-            core_dist_n_jobs=-1
-        )
+        clusterer = hdbscan.HDBSCAN(min_cluster_size=3,
+                                    min_samples=2,
+                                    metric='euclidean',
+                                    core_dist_n_jobs=-1)
 
         clusterer.fit(self.cluster_arr)
 
