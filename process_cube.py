@@ -57,7 +57,7 @@ class Cube(object):
         self.im = self.im.inav[x[0]:x[1], y[0]:y[1]]
 
         print(self.im.axes_manager)
-        self.plot(self.im)
+        # self.plot(self.im)  # todo disable temporarily
 
         #######################################################
         # Decomposition
@@ -67,7 +67,7 @@ class Cube(object):
 
         # self.n_components_model = None
         # self.n_components_model = 14
-        self.n_components_model = [0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13]
+        self.n_components_model = [0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13]  # todo set from pca / ica
 
         self.signal_model = None
 
@@ -87,11 +87,12 @@ class Cube(object):
         else:
             self.signal = self.im.copy()
 
-        # new_size = 10
+        # Set size of image to crop to (in pixels)  # todo set
+        new_size = 10
         # new_size = 20
         # new_size = 50
         # new_size = 100
-        new_size = 200
+        # new_size = 200
         # new_size = 300
         # new_size = 400
         # new_size = 500
@@ -105,7 +106,7 @@ class Cube(object):
 
         self.signal = self.signal.inav[x_min:x_max, y_min:y_max]
         print(self.signal.axes_manager)
-        self.plot(self.signal)
+        # self.plot(self.signal)  # todo disable temporarily
 
         #######################################################
         # Set data
@@ -122,24 +123,27 @@ class Cube(object):
         #######################################################
         # K-Means
 
-        n_clusters = self.plot_elbow()
-        # n_clusters = 4
-        # n_clusters = 8
-        n_clusters = [2, 3, 4, 6, 8]
-
         savefig = True
+        noshow = True  # todo enable temporarily
 
         savedir = '/Users/maxhipperson/Documents/Year 4/marsnet/results/frt00003bfb/no_decomposition'
         # self.savedir = '/Users/maxhipperson/Documents/Year 4/marsnet/results/frt00003bfb/pca_model'
         # self.savedir = '/Users/maxhipperson/Documents/Year 4/marsnet/results/frt00003bfb/ica_model'
 
-        for n in n_clusters:
-            savename = 'K-Means_clustering.imsize_{}.nclusters_{}.png'.format(new_size, n)
-            savepath = os.path.join(savedir, savename)
+        n_clusters = self.plot_elbow(noshow=noshow,
+                                     save=True,
+                                     savepath=os.path.join(savedir,'elbow.imsize_{}.png'.format(new_size)),)
+        # n_clusters = 4
+        # n_clusters = 8
+        n_clusters = [2, 3, 4, 6, 8]
 
+        for n in n_clusters:
             self.label_arr = self.k_means(n)
             self.plot_mean_and_mask(label_arr_title='K-Means, n_clusters: {}'.format(n),
-                                    save=savefig, savepath=savepath)
+                                    noshow=noshow,
+                                    save=savefig,
+                                    savepath=os.path.join(savedir,
+                                                          'kmeans.imsize_{}.nclusters_{}.png'.format(new_size, n)))
 
         # n_initial = 8
         # n_max = 20
@@ -248,7 +252,7 @@ class Cube(object):
 
         return arr
 
-    def plot_mean_and_mask(self, data=None, label_arr=None, label_arr_title='Labels', save=False, savepath='fig.png'):
+    def plot_mean_and_mask(self, data=None, label_arr=None, label_arr_title='Labels', save=False, savepath='fig.png', noshow=False):
         """ Plots the mean image from 3D array and the mean image with an overlay. """
 
         if data is None:
@@ -269,19 +273,23 @@ class Cube(object):
         axes[0].set_xlabel('pixels / px')
         axes[0].imshow(data)
 
+        # Reset matplotlib colour cycle
+        axes[1].set_prop_cycle(None)
         axes[1].set_title(label_arr_title)
         axes[1].set_ylabel('pixels / px')
         axes[1].set_xlabel('pixels / px')
         axes[1].imshow(data)
-        axes[1].imshow(label_arr, cmap='Set1', alpha=0.3)
+        axes[1].imshow(label_arr, cmap='Set1', alpha=0.4)
 
         plt.tight_layout()
         # plt.subplots_adjust(top=0.95)
+
         if save:
             fig.savefig(savepath)
+            if noshow:
+                plt.close()
 
         plt.show()
-
 
     def preprocess_clustering(self):
 
@@ -343,7 +351,7 @@ class Cube(object):
 
 
     @timeit
-    def plot_elbow(self):
+    def plot_elbow(self, save=False, savepath='elbow.png', noshow=False):
         # set k range
         kmin = 1
         kmax = 15
@@ -364,6 +372,12 @@ class Cube(object):
         plt.plot(x, wce, marker='x', linewidth=1)
         plt.plot(amount_clusters, wce[amount_clusters - 1], marker='x', c='r')
         plt.tight_layout()
+
+        if save:
+            plt.savefig(savepath)
+            if noshow:
+                plt.close()
+
         plt.show()
 
         return amount_clusters
