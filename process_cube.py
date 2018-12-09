@@ -17,6 +17,8 @@ from pyclustering.cluster.center_initializer import kmeans_plusplus_initializer
 
 import hdbscan
 
+# todo ADD DOCUMENTATION!
+
 class Cube(object):
     def __init__(self):
 
@@ -63,20 +65,20 @@ class Cube(object):
         # Decomposition
 
         # self.n_components_ica = None
-        self.n_components_ica = 14
+        self.n_components_ica = 5
 
         # self.n_components_model = None
-        # self.n_components_model = 14
-        self.n_components_model = [0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13]  # todo set from pca / ica
+        self.n_components_model = 5
+        # self.n_components_model = [0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13]  # todo set from pca / ica
 
         self.signal_model = None
 
-        # plot = True
-        plot = False
+        plot = True
+        # plot = False
 
         # self.run_pca(plot)
         # self.run_ica(plot)
-        # self.signal_model = self.build_signal_from_decomposition()
+        # self.signal_model = self.build_signal_from_decomposition(plot)
 
         #######################################################
         # Crop image
@@ -87,16 +89,17 @@ class Cube(object):
         else:
             self.signal = self.im.copy()
 
-        # Set size of image to crop to (in pixels)  # todo set
-        new_size = 10
+        # Set the size of image to crop to (in pixels)  # todo set
+        # new_size = 10
         # new_size = 20
         # new_size = 50
-        # new_size = 100
+        new_size = 100
         # new_size = 200
         # new_size = 300
         # new_size = 400
         # new_size = 500
 
+        # Calculate the indices to crop the image to from the new size
         x_mid = (x[0] + x[1]) / 2
         y_mid = (y[0] + y[1]) / 2
         x_min = x_mid - new_size / 2
@@ -104,6 +107,7 @@ class Cube(object):
         y_min = y_mid - new_size / 2
         y_max = y_mid + new_size / 2
 
+        # Crop the image
         self.signal = self.signal.inav[x_min:x_max, y_min:y_max]
         print(self.signal.axes_manager)
         # self.plot(self.signal)  # todo disable temporarily
@@ -115,7 +119,7 @@ class Cube(object):
         self.y, self.x, self.ch = self.Z.shape
 
         #######################################################
-        # Clustering
+        # Prepare clustering
 
         self.label_arr = None
         self.cluster_arr = self.preprocess_clustering()
@@ -123,19 +127,33 @@ class Cube(object):
         #######################################################
         # K-Means
 
-        savefig = True
+        # savefig = True
+        savefig = False
+
         noshow = True  # todo enable temporarily
+        # noshow = False
 
-        savedir = '/Users/maxhipperson/Documents/Year 4/marsnet/results/frt00003bfb/no_decomposition'
-        # self.savedir = '/Users/maxhipperson/Documents/Year 4/marsnet/results/frt00003bfb/pca_model'
-        # self.savedir = '/Users/maxhipperson/Documents/Year 4/marsnet/results/frt00003bfb/ica_model'
+        # Set the save directory for the plots  # todo set
+        savedir = None
+        # savedir = '/Users/maxhipperson/Documents/Year 4/marsnet/results/frt00003bfb/no_decomposition'
+        # savedir = '/Users/maxhipperson/Documents/Year 4/marsnet/results/frt00003bfb/pca_model'
+        # savedir = '/Users/maxhipperson/Documents/Year 4/marsnet/results/frt00003bfb/ica_model'
 
-        n_clusters = self.plot_elbow(noshow=noshow,
-                                     save=True,
-                                     savepath=os.path.join(savedir,'elbow.imsize_{}.png'.format(new_size)),)
+        # Plot an elbow plot and return the recommended n_clusters
+        # n_clusters = self.plot_elbow(noshow=noshow,
+        #                              save=True,
+        #                              savepath=os.path.join(savedir,'elbow.imsize_{}.png'.format(new_size)),)
+
+        # Set n_clusters if not determined from an elbow plot
+        # n_clusters = 3
         # n_clusters = 4
+        # n_clusters = 6
         # n_clusters = 8
         n_clusters = [2, 3, 4, 6, 8]
+
+        # Run K-Means for the set n_clusters and plot the results along with the mean image
+        if type(n_clusters) is int:
+            n_clusters = [n_clusters]
 
         for n in n_clusters:
             self.label_arr = self.k_means(n)
@@ -145,6 +163,7 @@ class Cube(object):
                                     savepath=os.path.join(savedir,
                                                           'kmeans.imsize_{}.nclusters_{}.png'.format(new_size, n)))
 
+        # Run X-Means
         # n_initial = 8
         # n_max = 20
         # label_arr = self.x_means(n_initial, n_max)
@@ -183,6 +202,7 @@ class Cube(object):
 
     @staticmethod
     def plot(im):
+        """ Shortcut line for plotting a signal with the hyperspy interface. """
         im.plot()
         plt.show()
 
@@ -216,17 +236,24 @@ class Cube(object):
 
     def run_pca(self, plot=True):
 
-        self.im.decomposition()
+        print('Running PCA...')
+        # self.im.decomposition()
+        self.im.decomposition(normalize_poissonian_noise=True)
         self.im.learning_results.summary()
 
         if plot:
-            self.im.plot_explained_variance_ratio(threshold=0.00001)
+            percent = 1000  # add a threshold line at this fraction of a percent
+            threshold = 100 - 1 / percent
+            threshold = 1 - threshold / 100
+
+            self.im.plot_explained_variance_ratio(threshold=threshold, xaxis_type='number')
             plt.show()
             self.im.plot_decomposition_results()
             plt.show()
 
     def run_ica(self, plot=True):
 
+        print('Running ICA...')
         self.im.blind_source_separation(self.n_components_ica)
         self.im.learning_results.summary()
 
@@ -234,12 +261,15 @@ class Cube(object):
             self.im.plot_bss_results()
             plt.show()
 
-    def build_signal_from_decomposition(self):
+    def build_signal_from_decomposition(self, plot=True):
         """ Builds a model of the signal from specified components - integer or list of integers. """
 
         signal_model = self.im.get_decomposition_model(self.n_components_model)
-        signal_model.plot()
-        plt.show()
+        print('Built signal from {} components'.format(self.n_components_model))
+
+        if plot:
+            self.plot(signal_model)
+            plt.show()
 
         return signal_model
 
@@ -286,8 +316,9 @@ class Cube(object):
 
         if save:
             fig.savefig(savepath)
-            if noshow:
-                plt.close()
+
+        if noshow:
+            plt.close()
 
         plt.show()
 
@@ -360,7 +391,7 @@ class Cube(object):
         elbow_instance.process()
 
         amount_clusters = elbow_instance.get_amount()  # most probable amount of clusters
-        print('Amount of clusters: {}'.format(amount_clusters))
+        print('Recommended n_clusters: {}'.format(amount_clusters))
 
         wce = elbow_instance.get_wce()
         x = range(kmin, kmax)
