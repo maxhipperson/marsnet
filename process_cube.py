@@ -5,6 +5,7 @@ import hyperspy.api as hs
 from skimage import io
 from utils import *
 import numpy as np
+import numpy.ma as ma
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -59,7 +60,7 @@ class Cube(object):
         # self.im = self.im.inav[x[0]:x[1], y[0]:y[1]]
 
         print(self.im.axes_manager)
-        self.plot(self.im)  # todo disable temporarily
+        # self.plot(self.im)  # todo disable temporarily
 
         #######################################################
         # Decomposition
@@ -76,7 +77,7 @@ class Cube(object):
         plot = True
         # plot = False
 
-        # self.run_pca(plot)
+        self.run_pca(plot)
         # self.run_ica(plot)
         # self.signal_model = self.build_signal_from_decomposition(plot)
 
@@ -90,28 +91,30 @@ class Cube(object):
             self.signal = self.im.copy()
 
         # Set the size of image to crop to (in pixels)  # todo set
+        new_size = None
         # new_size = 10
         # new_size = 20
         # new_size = 50
-        new_size = 100
+        # new_size = 100
         # new_size = 200
         # new_size = 300
         # new_size = 400
         # new_size = 500
 
-        # Calculate the indices to crop the image to from the new size
-        x_mid = (x[0] + x[1]) / 2
-        y_mid = (y[0] + y[1]) / 2
-        x_min = x_mid - new_size / 2
-        x_max = x_mid + new_size / 2
-        y_min = y_mid - new_size / 2
-        y_max = y_mid + new_size / 2
+        if type(new_size) is int:
+            # Calculate the indices to crop the image to from the new size
+            x_mid = (x[0] + x[1]) / 2
+            y_mid = (y[0] + y[1]) / 2
+            x_min = x_mid - new_size / 2
+            x_max = x_mid + new_size / 2
+            y_min = y_mid - new_size / 2
+            y_max = y_mid + new_size / 2
 
-        # Crop the image
-        # self.signal = self.signal.inav[x_min:x_max, y_min:y_max]
-        self.signal = self.signal.inav[100:200, 100:200]
-        print(self.signal.axes_manager)
-        self.plot(self.signal)  # todo disable temporarily
+            # Crop the image
+            self.signal = self.signal.inav[x_min:x_max, y_min:y_max]
+            # self.signal = self.signal.inav[80:180, 380:480]
+            print(self.signal.axes_manager)
+            self.plot(self.signal)  # todo disable temporarily
 
         #######################################################
         # Set data
@@ -123,7 +126,7 @@ class Cube(object):
         # Prepare clustering
 
         self.label_arr = None
-        self.cluster_arr = self.preprocess_clustering()
+        self.spectra_index_arr, self.spectra_arr, self.mask = self.preprocess_clustering()
 
         #######################################################
         # K-Means
@@ -323,15 +326,48 @@ class Cube(object):
 
         plt.show()
 
+    @timeit
     def preprocess_clustering(self):
 
-        # flatten data and rescale spectra
-        cluster_arr = np.reshape(self.Z.copy(), (self.x * self.y, self.ch))
-        cluster_arr = self.rescale_array(cluster_arr)
+        print('Preprocessing data for clustering...')
 
-        print('Flattened array shape: {}'.format(cluster_arr.shape))
+        data = self.Z.copy()
 
-        return cluster_arr
+        y = self.y
+        x = self.x
+        ch = self.ch
+
+        y_range = range(y)
+        x_range = range(x)
+
+        spectra_arr = None
+        spectra_index_arr = None
+
+        # TODO speed this up...
+        for i in y_range:
+            for j in x_range:
+                spectrum = data[i, j, :]
+                spectrum = np.expand_dims(spectrum, axis=0)
+
+                if np.all(spectrum) == 0:
+                    continue
+
+                if spectra_arr is None:
+                    spectra_arr = spectrum
+                    spectra_index_arr = [(i, j)]
+                else:
+                    spectra_arr = np.concatenate((spectra_arr, spectrum), axis=0)
+                    spectra_index_arr.append((i, j))
+
+        print('{} null spectra'.format(x*y - len(spectra_index_arr)))
+        print('{} spectra'.format(len(spectra_index_arr)))
+        print('spectra_arr shape: {}'.format(spectra_arr.shape))
+
+        temp = np.sum(data, axis=2)
+        mask = np.zeros_like(temp)
+        mask[temp == 0] = 1
+
+        return spectra_index_arr, spectra_arr, mask
 
 
     def rearrange_clusters_into_label_arr(self, clusters):
@@ -339,13 +375,24 @@ class Cube(object):
         # Only needed to rearrange the pyclustering label outut!
         print('Number of clusters: {}'.format(len(clusters)))
 
-        label_arr = np.zeros((self.cluster_arr.shape[0]))
+        indicies = self.spectra_index_arr
+        clusters = clusters
 
-        for cluster_id, spectra_list in enumerate(clusters):
-            for index in spectra_list:
-                label_arr[index] = cluster_id
+        labels = np.zeros((self.spectra_arr.shape[0]))
 
-        label_arr = label_arr.reshape((self.y, self.x))
+        for label, spectra_list in enumerate(clusters):
+            for spectrum_index in spectra_list:
+                labels[spectrum_index] = label
+
+        label_arr = np.zeros((self.y, self.x))
+
+        for i, label in enumerate(labels):
+            (y, x) = indicies[i]
+            label_arr[y, x] = label
+
+        label_arr = ma.array(data=label_arr, mask=self.mask)
+
+        print('')
 
         return label_arr
 
@@ -353,7 +400,7 @@ class Cube(object):
     @timeit
     def k_means(self,  n_clusters=None):
 
-        data = self.cluster_arr
+        data = self.spectra_arr
 
         # initialize centers
         initial_centers = kmeans_plusplus_initializer(data, n_clusters).initialize()
