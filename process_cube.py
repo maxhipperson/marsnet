@@ -56,10 +56,10 @@ class Cube(object):
 
         # 'frt00009a16_data_cube.tif'
         # Set size of image to crop to (in pixels)
-        self.im = self.im.inav[x[0]:x[1], y[0]:y[1]]
+        # self.im = self.im.inav[x[0]:x[1], y[0]:y[1]]
 
         print(self.im.axes_manager)
-        # self.plot(self.im)  # todo disable temporarily
+        self.plot(self.im)  # todo disable temporarily
 
         #######################################################
         # Decomposition
@@ -108,9 +108,10 @@ class Cube(object):
         y_max = y_mid + new_size / 2
 
         # Crop the image
-        self.signal = self.signal.inav[x_min:x_max, y_min:y_max]
+        # self.signal = self.signal.inav[x_min:x_max, y_min:y_max]
+        self.signal = self.signal.inav[100:200, 100:200]
         print(self.signal.axes_manager)
-        # self.plot(self.signal)  # todo disable temporarily
+        self.plot(self.signal)  # todo disable temporarily
 
         #######################################################
         # Set data
@@ -130,11 +131,11 @@ class Cube(object):
         # savefig = True
         savefig = False
 
-        noshow = True  # todo enable temporarily
-        # noshow = False
+        # noshow = True  # todo enable temporarily
+        noshow = False
 
         # Set the save directory for the plots  # todo set
-        savedir = None
+        savedir = '.'
         # savedir = '/Users/maxhipperson/Documents/Year 4/marsnet/results/frt00003bfb/no_decomposition'
         # savedir = '/Users/maxhipperson/Documents/Year 4/marsnet/results/frt00003bfb/pca_model'
         # savedir = '/Users/maxhipperson/Documents/Year 4/marsnet/results/frt00003bfb/ica_model'
@@ -145,11 +146,11 @@ class Cube(object):
         #                              savepath=os.path.join(savedir,'elbow.imsize_{}.png'.format(new_size)),)
 
         # Set n_clusters if not determined from an elbow plot
-        # n_clusters = 3
+        n_clusters = 3
         # n_clusters = 4
         # n_clusters = 6
         # n_clusters = 8
-        n_clusters = [2, 3, 4, 6, 8]
+        # n_clusters = [2, 3, 4, 6, 8]
 
         # Run K-Means for the set n_clusters and plot the results along with the mean image
         if type(n_clusters) is int:
