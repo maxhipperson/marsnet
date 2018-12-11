@@ -1,22 +1,16 @@
 import matplotlib
 matplotlib.use('Qt5Agg')
-import os
-import hyperspy.api as hs
-from skimage import io
 from utils import *
 import numpy as np
 import numpy.ma as ma
 import matplotlib.pyplot as plt
-import seaborn as sns
-
-import fitsne
-
 from pyclustering.cluster.elbow import elbow
 from pyclustering.cluster.kmeans import kmeans
 from pyclustering.cluster.xmeans import xmeans
 from pyclustering.cluster.center_initializer import kmeans_plusplus_initializer
-
 import hdbscan
+import fitsne
+from tqdm import tqdm
 
 # todo ADD DOCUMENTATION!
 
@@ -26,13 +20,17 @@ class Cube(object):
         src_dir = '/Users/maxhipperson/Documents/Year 4/marsnet/data.nosync'
 
         # river basin
-        hdr_name = 'frt00003bfb_07_if166j_mtr3.hdr'
-        im_name = 'frt00003bfb_data_cube.tif'
-        x, y = (110, 690), (120, 760)  # 580 x 640 - centre = (400. 440)
+        # hdr_name = 'frt00003bfb_07_if166j_mtr3.hdr'
+        # im_name = 'frt00003bfb_data_cube.tif'
+        x, y = (110, 690), (120, 760)  # 580 x 640, centre: (400. 440)
 
         # # crater
         # hdr_name = 'frt00009a16_07_if166j_mtr3.hdr'
-        # cube_name = 'frt00009a16_data_cube.tif'
+        # im_name = 'frt00009a16_data_cube.tif'
+
+        # # biiiig crater
+        hdr_name = 'frt00009a9a_07_if166j_mtr3.hdr'
+        im_name = 'frt00009a9a_data_cube.tif'
 
         hdr_path = os.path.join(src_dir, hdr_name)
         im_path = os.path.join(src_dir, im_name)
@@ -47,20 +45,19 @@ class Cube(object):
 
         # Restrict wavelength range
         # lower, upper = 1000, 2800
-        # lower, upper = 1000, 2800
+        # lower, upper = 1000, 28
         lower, upper = None, 2800
         # lower, upper = 1000, None
 
         # Crop signal to wavelength or index range
         self.crop_signal(lower=lower, upper=upper)
-        # self.plot(self.im)
 
         # 'frt00009a16_data_cube.tif'
         # Set size of image to crop to (in pixels)
         # self.im = self.im.inav[x[0]:x[1], y[0]:y[1]]
 
         print(self.im.axes_manager)
-        # self.plot(self.im)  # todo disable temporarily
+        self.plot(self.im)  # todo disable temporarily
 
         #######################################################
         # Decomposition
@@ -77,7 +74,7 @@ class Cube(object):
         plot = True
         # plot = False
 
-        self.run_pca(plot)
+        # self.run_pca(plot)
         # self.run_ica(plot)
         # self.signal_model = self.build_signal_from_decomposition(plot)
 
@@ -91,7 +88,7 @@ class Cube(object):
             self.signal = self.im.copy()
 
         # Set the size of image to crop to (in pixels)  # todo set
-        new_size = None
+        new_size = 'all'
         # new_size = 10
         # new_size = 20
         # new_size = 50
@@ -101,7 +98,7 @@ class Cube(object):
         # new_size = 400
         # new_size = 500
 
-        if type(new_size) is int:
+        if new_size is not 'all':
             # Calculate the indices to crop the image to from the new size
             x_mid = (x[0] + x[1]) / 2
             y_mid = (y[0] + y[1]) / 2
@@ -112,7 +109,7 @@ class Cube(object):
 
             # Crop the image
             self.signal = self.signal.inav[x_min:x_max, y_min:y_max]
-            # self.signal = self.signal.inav[80:180, 380:480]
+            # self.signal = self.signal.inav[50:250, 50:250]
             print(self.signal.axes_manager)
             self.plot(self.signal)  # todo disable temporarily
 
@@ -149,8 +146,8 @@ class Cube(object):
         #                              savepath=os.path.join(savedir,'elbow.imsize_{}.png'.format(new_size)),)
 
         # Set n_clusters if not determined from an elbow plot
-        n_clusters = 3
-        # n_clusters = 4
+        # n_clusters = 3
+        n_clusters = 4
         # n_clusters = 6
         # n_clusters = 8
         # n_clusters = [2, 3, 4, 6, 8]
@@ -332,43 +329,31 @@ class Cube(object):
         print('Preprocessing data for clustering...')
 
         data = self.Z.copy()
-
         y = self.y
         x = self.x
         ch = self.ch
 
-        y_range = range(y)
-        x_range = range(x)
-
-        spectra_arr = None
-        spectra_index_arr = None
-
-        # TODO speed this up...
-        for i in y_range:
-            for j in x_range:
-                spectrum = data[i, j, :]
-                spectrum = np.expand_dims(spectrum, axis=0)
-
-                if np.all(spectrum) == 0:
-                    continue
-
-                if spectra_arr is None:
-                    spectra_arr = spectrum
-                    spectra_index_arr = [(i, j)]
-                else:
-                    spectra_arr = np.concatenate((spectra_arr, spectrum), axis=0)
-                    spectra_index_arr.append((i, j))
-
-        print('{} null spectra'.format(x*y - len(spectra_index_arr)))
-        print('{} spectra'.format(len(spectra_index_arr)))
-        print('spectra_arr shape: {}'.format(spectra_arr.shape))
-
+        # sum spectra to 2D array
         temp = np.sum(data, axis=2)
+
+        # make array of indicies of nonzero elements
+        spectra_index_arr = np.transpose(np.nonzero(temp)).tolist()
+
+        # reshape spectra into n_spectra x l_spectra and remove all zero spectra (outside the image boundaries)
+        spectra_arr = np.reshape(data, (x * y, ch))
+        spectra_arr = spectra_arr[~np.all(spectra_arr, axis=1) == 0]
+
+        spectra_arr = self.rescale_array(spectra_arr)
+
+        # make mask from the summed array
         mask = np.zeros_like(temp)
         mask[temp == 0] = 1
 
-        return spectra_index_arr, spectra_arr, mask
+        print('{} null spectra'.format(x * y - len(spectra_index_arr)))
+        print('{} spectra'.format(len(spectra_index_arr)))
+        print('spectra_arr shape: {}'.format(spectra_arr.shape))
 
+        return spectra_index_arr, spectra_arr, mask
 
     def rearrange_clusters_into_label_arr(self, clusters):
 
@@ -398,7 +383,7 @@ class Cube(object):
 
 
     @timeit
-    def k_means(self,  n_clusters=None):
+    def k_means(self, n_clusters=None):
 
         data = self.spectra_arr
 
@@ -411,39 +396,32 @@ class Cube(object):
 
         # get clusters and process into label_arr
         clusters = kmeans_instance.get_clusters()
-        centers = kmeans_instance.get_centers()
-
         label_arr = self.rearrange_clusters_into_label_arr(clusters)
-
-        # temp
-
-        # spectra = [[self.cluster_arr[index] for index in spectra_list] for spectra_list in clusters]
-        # spectra_arr = [np.array(f) for f in spectra]
-        # mean_spectra = [np.mean(f, axis=0) for f in spectra_arr]
-        #
-        # plt.figure()
-        # for spectrum in mean_spectra:
-        #     plt.plot(range(spectrum.size), spectrum)
-        # plt.show()
 
         return label_arr
 
 
     @timeit
     def plot_elbow(self, save=False, savepath='elbow.png', noshow=False):
+
         # set k range
         kmin = 1
         kmax = 15
 
-        elbow_instance = elbow(self.cluster_arr, kmin, kmax)
+        # run elbow
+        elbow_instance = elbow(self.spectra_arr, kmin, kmax)
         elbow_instance.process()
 
-        amount_clusters = elbow_instance.get_amount()  # most probable amount of clusters
+        # get the recommended amount of clusters
+        amount_clusters = elbow_instance.get_amount()
         print('Recommended n_clusters: {}'.format(amount_clusters))
 
+        # get wce and make the k range to plot
         wce = elbow_instance.get_wce()
         x = range(kmin, kmax)
 
+
+        # make the elbow plot
         plt.figure(figsize=(5, 5))
         plt.title('Elbow plot, {} - {} clusters'.format(kmin, kmax))
         plt.ylabel('wce')
@@ -454,8 +432,8 @@ class Cube(object):
 
         if save:
             plt.savefig(savepath)
-            if noshow:
-                plt.close()
+        if noshow:
+            plt.close()
 
         plt.show()
 
@@ -465,10 +443,17 @@ class Cube(object):
     def tsne(self, data=None, label_arr=None):
 
         if data is None:
-            data = self.cluster_arr.astype(np.double)
+            data = self.spectra_arr.astype(np.double)
 
-        if self.cluster_arr is not None:
-            label_arr = np.reshape(self.label_arr.copy(), (self.x * self.y))
+        if self.spectra_arr is not None:
+
+            # get data from masked array
+            label_arr = self.label_arr.copy().data
+            indicies = np.array(self.spectra_index_arr)
+
+            label_arr = label_arr[indicies[:, 0], indicies[:, 1]]
+
+            # label_arr = np.reshape(label_arr, (self.x * self.y))
 
         out = fitsne.FItSNE(data)
 
@@ -478,24 +463,21 @@ class Cube(object):
         plt.show()
 
 
-    @timeit
-    def hdbscan(self):
-
-        clusterer = hdbscan.HDBSCAN(min_cluster_size=3,
-                                    min_samples=2,
-                                    metric='euclidean',
-                                    core_dist_n_jobs=-1)
-
-        clusterer.fit(self.cluster_arr)
-
-        clusters = clusterer.labels_
-        label_arr = clusters.reshape((self.y, self.x))
-
-        print('Done')
-        return label_arr
-
-
-
+    # @timeit
+    # def hdbscan(self):
+    #
+    #     clusterer = hdbscan.HDBSCAN(min_cluster_size=3,
+    #                                 min_samples=2,
+    #                                 metric='euclidean',
+    #                                 core_dist_n_jobs=-1)
+    #
+    #     clusterer.fit(self.spectra_arr)
+    #
+    #     clusters = clusterer.labels_
+    #     label_arr = clusters.reshape((self.y, self.x))
+    #
+    #     print('Done')
+    #     return label_arr
 
 
 if __name__ == '__main__':
