@@ -20,17 +20,21 @@ class Cube(object):
         src_dir = '/Users/maxhipperson/Documents/Year 4/marsnet/data.nosync'
 
         # river basin
-        # hdr_name = 'frt00003bfb_07_if166j_mtr3.hdr'
-        # im_name = 'frt00003bfb_data_cube.tif'
+        hdr_name = 'frt00003bfb_07_if166j_mtr3.hdr'
+        im_name = 'frt00003bfb.tif'
         x, y = (110, 690), (120, 760)  # 580 x 640, centre: (400. 440)
 
         # # crater
         # hdr_name = 'frt00009a16_07_if166j_mtr3.hdr'
-        # im_name = 'frt00009a16_data_cube.tif'
+        # im_name = 'frt00009a16.tif'
 
         # # biiiig crater
-        hdr_name = 'frt00009a9a_07_if166j_mtr3.hdr'
-        im_name = 'frt00009a9a_data_cube.tif'
+        # hdr_name = 'frt00009a9a_07_if166j_mtr3.hdr'
+        # im_name = 'frt00009a9a.tif'
+
+        # # no idea what this is
+        # hdr_name = 'hrl000054bb_07_if182j_mtr3.hdr'
+        # im_name = 'hr1000054bb.tif'
 
         hdr_path = os.path.join(src_dir, hdr_name)
         im_path = os.path.join(src_dir, im_name)
@@ -74,7 +78,7 @@ class Cube(object):
         plot = True
         # plot = False
 
-        # self.run_pca(plot)
+        self.run_pca(plot)
         # self.run_ica(plot)
         # self.signal_model = self.build_signal_from_decomposition(plot)
 
