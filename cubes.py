@@ -4,14 +4,20 @@ from utils import *
 import numpy as np
 import numpy.ma as ma
 import matplotlib.pyplot as plt
+import seaborn  as sns
+from matplotlib.colors import ListedColormap
 from pyclustering.cluster.elbow import elbow
 from pyclustering.cluster.kmeans import kmeans
 from pyclustering.cluster.xmeans import xmeans
 from pyclustering.cluster.center_initializer import kmeans_plusplus_initializer
+from pyclustering.utils.metric import type_metric, distance_metric;
 import hdbscan
 import fitsne
 from tqdm import tqdm
 from sklearn.preprocessing import normalize
+from sklearn.metrics.pairwise import cosine_distances, euclidean_distances
+from sklearn.metrics.pairwise import cosine_similarity
+from mpl_toolkits.axes_grid1.inset_locator import InsetPosition
 
 
 class Cube(object):
@@ -57,18 +63,19 @@ class Cube(object):
     def _crop_signal(self, lower, upper, limit_type='wavelength'):
 
         # find the index of the boundary wavelengths in the header
+        wavelengths = np.array(self.hdr['wavelength'])
+
         if limit_type == 'wavelength':
-            wavelength = np.array(self.hdr['wavelength'])
 
             if lower is None:
                 lower_index = None
             else:
-                lower_index = np.argmax(wavelength >= lower)
+                lower_index = np.argmax(wavelengths >= lower)
 
             if upper is None:
                 upper_index = None
             else:
-                upper_index = np.argmax(wavelength > upper) - 1
+                upper_index = np.argmax(wavelengths > upper) - 1
 
         else:
             lower_index = lower
@@ -76,6 +83,7 @@ class Cube(object):
 
         # crop the signal to the index range from header
         self.signal.crop_signal1D(lower_index, upper_index)
+        self.wavelengths = wavelengths[lower_index:upper_index]
 
         print('Cropped signal')
         print('wavelength: {} - {}'.format(lower, upper, self.hdr['wavelength units']))
@@ -230,8 +238,15 @@ class ClusterCube(DecomposeCube):
         # initialize centers
         initial_centers = kmeans_plusplus_initializer(spectra_arr, n_clusters).initialize()
 
+        metric = distance_metric(type_metric.EUCLIDEAN_SQUARE)
+
+        # define custom metric
+        # def cosine_distance(a, b):
+        #     return 1 - np.inner(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+        # metric = distance_metric(type_metric.USER_DEFINED, func=cosine_distance)
+
         # create instance of K-Means with centers
-        kmeans_instance = kmeans(spectra_arr, initial_centers)
+        kmeans_instance = kmeans(spectra_arr, initial_centers, metric=metric)
         kmeans_instance.process()
 
         # get clusters and process into label_arr
@@ -248,7 +263,10 @@ class ClusterCube(DecomposeCube):
         signal_data -= np.mean(signal_data)
         signal_data /= np.std(signal_data)
 
-        fig, axes = plt.subplots(1, 2, figsize=(8, 6))
+        palette = sns.color_palette('Set2', n_colors=n_clusters)
+        cmap = ListedColormap(palette.as_hex())
+
+        fig, axes = plt.subplots(1, 4, figsize=(8, 6))
         # fig.suptitle('')
 
         axes[0].set_title('Mean')
@@ -262,16 +280,27 @@ class ClusterCube(DecomposeCube):
         axes[1].set_ylabel('pixels / px')
         axes[1].set_xlabel('pixels / px')
         axes[1].imshow(signal_data)
-        axes[1].imshow(label_mask, cmap='Set1', alpha=0.4)
+        im = axes[1].imshow(label_mask, cmap=cmap, alpha=0.4)
+        plt.colorbar(im)
 
         plt.tight_layout()
         # plt.subplots_adjust(top=0.95)
+
+        fig, ax = plt.subplots()
+
+        for i in range(centers.shape[0]):
+            ax.plot(self.wavelengths, centers[i], linewidth=1, c=palette[i], label='Cluster {}'.format(i))
+
+        ax.set_ylabel('')
+        ax.set_xlabel(r'wavelength / $\mu$m')
+        fig.legend()
 
         if savepath is not None:
             fig.savefig(savepath)
 
         if plot:
             plt.show()
+            pass
         else:
             plt.close()
 

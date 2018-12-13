@@ -11,10 +11,10 @@ names = {
     'who knows': ['hrl000054bb_07_if182j_mtr3.hdr', 'hr1000054bb.tif']
 }
 
-# img = 'river'
+img = 'river'
 # img = 'crater'
 # img = 'big crater'
-img = 'who knows'
+# img = 'who knows'
 
 cube = ClusterCube(src_dir,
                    names[img][0],
@@ -27,11 +27,11 @@ cube = ClusterCube(src_dir,
 # cube.run_ica(10, plot=True)
 # cube.build_signal_from_decomposition(5, plot=True)
 
-# cube.crop_image(new_size=100)
+cube.crop_image(new_size=50)
 # cube.plot()
 
-cube.preprocess_spectra(rescale=True,
-                        # normalise='l1'
+cube.preprocess_spectra(rescale=False,
+                        normalise='l2'
                         )
 
 n_clusters = 4
@@ -41,7 +41,6 @@ label_arr, centers = cube.k_means(n_clusters, plot=True)
 print(label_arr.shape)
 print(centers.shape)
 
-plt.figure()
-for i in range(centers.shape[0]):
-    plt.plot(range(centers.shape[1]), centers[i])
+
+
 plt.show()
