@@ -6,6 +6,7 @@ import numpy.ma as ma
 import matplotlib.pyplot as plt
 import seaborn  as sns
 from matplotlib.colors import ListedColormap
+import matplotlib.ticker as ticker
 from pyclustering.cluster.elbow import elbow
 from pyclustering.cluster.kmeans import kmeans
 from pyclustering.cluster.xmeans import xmeans
@@ -17,11 +18,11 @@ from tqdm import tqdm
 from sklearn.preprocessing import normalize
 from sklearn.metrics.pairwise import cosine_distances, euclidean_distances
 from sklearn.metrics.pairwise import cosine_similarity
-from mpl_toolkits.axes_grid1.inset_locator import InsetPosition
+# sns.set()
 
 
 class Cube(object):
-    def __init__(self, src_dir, hdr_name, im_name, wavelength_min=None, wavelength_max=None):
+    def __init__(self, src_dir, hdr_name, im_name, wavelength_min=None, wavelength_max=None, savedir='.'):
 
         hdr_path = os.path.join(src_dir, hdr_name)
         im_path = os.path.join(src_dir, im_name)
@@ -40,6 +41,8 @@ class Cube(object):
         self.spectra_index_arr = None
         self.spectra_arr = None
         self.mask = None
+
+        self.savedir = savedir
 
     def _read_cube(self, im_path):
 
@@ -211,9 +214,6 @@ class ClusterCube(DecomposeCube):
         # Only needed to rearrange the pyclustering label outut!
         print('Number of clusters: {}'.format(len(clusters)))
 
-        indicies = self.spectra_index_arr
-        clusters = clusters
-
         label_arr = np.zeros((self.spectra_arr.shape[0]))
 
         for label, spectra_list in enumerate(clusters):
@@ -223,7 +223,7 @@ class ClusterCube(DecomposeCube):
         label_mask = np.zeros((self.y, self.x))
 
         for i, label in enumerate(label_arr):
-            (y, x) = indicies[i]
+            (y, x) = self.spectra_index_arr[i]
             label_mask[y, x] = label
 
         label_mask = ma.array(data=label_mask, mask=self.mask)
@@ -231,13 +231,12 @@ class ClusterCube(DecomposeCube):
         return label_arr, label_mask
 
     @timeit
-    def k_means(self, n_clusters, plot=True, savepath=None):
+    def k_means(self, n_clusters, plot=True, save=False):
 
-        spectra_arr = self.spectra_arr
+        ##############################
+        # Run clustering
 
-        # initialize centers
-        initial_centers = kmeans_plusplus_initializer(spectra_arr, n_clusters).initialize()
-
+        # Define metric to use for k means
         metric = distance_metric(type_metric.EUCLIDEAN_SQUARE)
 
         # define custom metric
@@ -246,68 +245,81 @@ class ClusterCube(DecomposeCube):
         # metric = distance_metric(type_metric.USER_DEFINED, func=cosine_distance)
 
         # create instance of K-Means with centers
-        kmeans_instance = kmeans(spectra_arr, initial_centers, metric=metric)
+        initial_centers = kmeans_plusplus_initializer(self.spectra_arr, n_clusters).initialize()
+        kmeans_instance = kmeans(self.spectra_arr, initial_centers, metric=metric)
         kmeans_instance.process()
 
         # get clusters and process into label_arr
         clusters = kmeans_instance.get_clusters()
-        centers = kmeans_instance.get_centers()
-        centers = np.array(centers)
+        centers = np.array(kmeans_instance.get_centers())
 
         label_arr, label_mask = self.rearrange_clusters_into_label_arr(clusters)
-
-        title = 'K-Means, n_clusters: {}'.format(n_clusters)
 
         signal_data = self.Z.copy()
         signal_data = np.sum(signal_data, axis=2)
         signal_data -= np.mean(signal_data)
         signal_data /= np.std(signal_data)
 
-        palette = sns.color_palette('Set2', n_colors=n_clusters)
+        ##############################
+        # Plot clustering map
+
+        palette = sns.color_palette('Set1', n_colors=n_clusters)
         cmap = ListedColormap(palette.as_hex())
 
-        fig, axes = plt.subplots(1, 4, figsize=(8, 6))
+        fig1, axes = plt.subplots(1, 2, figsize=(10, 6))
         # fig.suptitle('')
 
-        axes[0].set_title('Mean')
+        axes[0].set_title('Mean', fontsize='medium')
         axes[0].set_ylabel('pixels / px')
         axes[0].set_xlabel('pixels / px')
         axes[0].imshow(signal_data)
 
         # Reset matplotlib colour cycle
-        axes[1].set_prop_cycle(None)
-        axes[1].set_title(title)
+        # axes[1].set_prop_cycle(None)
+        axes[1].set_title('K-Means, n_clusters: {}'.format(n_clusters), fontsize='medium')
         axes[1].set_ylabel('pixels / px')
         axes[1].set_xlabel('pixels / px')
         axes[1].imshow(signal_data)
         im = axes[1].imshow(label_mask, cmap=cmap, alpha=0.4)
-        plt.colorbar(im)
+        # plt.colorbar(im)
 
         plt.tight_layout()
-        # plt.subplots_adjust(top=0.95)
 
-        fig, ax = plt.subplots()
+        ##############################
+        # Plot spectra from clustering
 
+        fig2, axes = plt.subplots(2, 1, figsize=(6, 6))
+
+        axes[0].set_title('Cluster Centers Spectra', fontsize='medium')
         for i in range(centers.shape[0]):
-            ax.plot(self.wavelengths, centers[i], linewidth=1, c=palette[i], label='Cluster {}'.format(i))
+            axes[0].plot(self.wavelengths / 1000, centers[i], linewidth=1, c=palette[i], label='Cluster {}'.format(i))
+        axes[0].set_ylabel('')
+        axes[0].set_xlabel('')
 
-        ax.set_ylabel('')
-        ax.set_xlabel(r'wavelength / $\mu$m')
-        fig.legend()
+        mean_sub = centers - np.mean(self.spectra_arr, axis=0)
 
-        if savepath is not None:
-            fig.savefig(savepath)
+        axes[1].set_title('Mean Subtracted Cluster Center Spectra', fontsize='medium')
+        for i in range(mean_sub.shape[0]):
+            axes[1].plot(self.wavelengths / 1000, mean_sub[i], linewidth=1, c=palette[i])
+        axes[1].set_ylabel('')
+        axes[1].set_xlabel(r'Wavelength / $\mu$m')
+
+        fig2.legend()
+        plt.tight_layout()
+
+        if save:
+            fig1.savefig(os.path.join(self.savedir, 'cluster_map.n_clusters_{}.png'.format(n_clusters)), dpi=300)
+            fig2.savefig(os.path.join(self.savedir, 'cluster_spectra.n_clusters_{}.png'.format(n_clusters)), dpi=300)
 
         if plot:
             plt.show()
-            pass
         else:
             plt.close()
 
         return label_arr, centers
 
     @timeit
-    def plot_elbow(self, k_min=1, k_max=15, plot=True, savepath=None):
+    def elbow(self, k_min=1, k_max=15, plot=True, save=False):
 
         # run elbow
         elbow_instance = elbow(self.spectra_arr, k_min, k_max)
@@ -317,21 +329,32 @@ class ClusterCube(DecomposeCube):
         n_clusters = elbow_instance.get_amount()
         print('Recommended n_clusters: {}'.format(n_clusters))
 
+        ##############################
+        # Plot elbow
+
         # get wce and make the k range to plot
         wce = elbow_instance.get_wce()
         x = range(k_min, k_max)
 
         # make the elbow plot
-        plt.figure(figsize=(5, 5))
-        plt.title('Elbow plot, {} - {} clusters'.format(k_min, k_max))
-        plt.ylabel('wce')
-        plt.xlabel('k')
-        plt.plot(x, wce, marker='x', linewidth=1)
-        plt.plot(n_clusters, wce[n_clusters - 1], marker='x', c='r')
+        fig, ax = plt.subplots(figsize=(4, 4))
+        ax.set_title('Elbow plot, {} - {} clusters'.format(k_min, k_max), fontsize='medium')
+        ax.set_ylabel('total within-cluster error (wce)')
+        ax.set_xlabel('n_clusters (k)')
+        ax.set_xticks(x)
+        ax.plot(x, wce, marker='x', linewidth=1)
+        ax.plot(n_clusters, wce[n_clusters - 1], marker='x', c='r')
+
+        ax.annotate('optimal n_clusters: {}'.format(n_clusters),
+                    xy=(n_clusters, wce[n_clusters - 1]),
+                    textcoords='axes fraction',
+                    xytext=(0.3, 0.5),
+                    arrowprops=dict(arrowstyle='->'))
+
         plt.tight_layout()
 
-        if savepath is not None:
-            plt.savefig(savepath)
+        if save:
+            fig.savefig(os.path.join(self.savedir, 'elbow.png'), dpi=300)
 
         if plot:
             plt.show()
@@ -363,18 +386,3 @@ if __name__ == '__main__':
 
     # cube.crop_image(new_size=100)
     # cube.plot()
-
-    cube.preprocess_spectra(rescale_spectra=True)
-
-    n_clusters = 4
-    # n_clusters = cube.plot_elbow(k_min=1, k_max=15, plot=True)
-    label_arr, centers = cube.k_means(n_clusters, plot=True)
-
-    print(label_arr.shape)
-    print(centers.shape)
-
-    plt.figure()
-    for i in range(centers.shape[0]):
-        plt.plot(range(centers.shape[1]), centers[i])
-    plt.show()
-
