@@ -128,7 +128,8 @@ class Cube(object):
         print('Cropped to {} x {}'.format(new_size, new_size))
         print(self.signal.axes_manager)
 
-    def preprocess_spectra(self, rescale=True, normalise=False):
+    def preprocess_spectra(self, process=None):
+        """"""
 
         print('Preprocessing spectra...')
 
@@ -148,15 +149,50 @@ class Cube(object):
         spectra_arr = spectra_arr[~np.all(spectra_arr, axis=1) == 0]
 
         # rescale the spectra
-        if rescale:
+        if process == 'rescale':
             spectra_arr -= np.mean(spectra_arr, axis=1, keepdims=True)
             spectra_arr /= np.std(spectra_arr, axis=1, keepdims=True)
 
-        if normalise == 'l1':
+        if process == 'l1':
             spectra_arr = normalize(spectra_arr, norm='l1')
 
-        if normalise == 'l2':
+        if process == 'l2':
             spectra_arr = normalize(spectra_arr, norm='l2')
+
+        if process == 'chem':
+
+            # fit polynomial to the mean spectrum and subtract from spectra
+            mean = np.mean(spectra_arr, axis=0)
+            deg = 6
+            coefs = np.polyfit(self.wavelengths, mean, deg=deg)
+            ffit = np.polyval(coefs, self.wavelengths)
+
+            plt.figure()
+            plt.plot(self.wavelengths, mean, linewidth=1, label='mean spectrum')
+            plt.plot(self.wavelengths, ffit, linewidth=1, label='polynomial of degree {}'.format(deg))
+            plt.plot(self.wavelengths, mean - ffit, linewidth=1, label='fit subtracted mean')
+            plt.title('Polynomial of degree {} fit to mean spectrum'.format(deg), fontsize='medium')
+            plt.xlabel(r'Wavelength / $\mu$m')
+            plt.legend(fontsize='small')
+            plt.show()
+
+            spectra_arr -= ffit
+
+            # standard normal variate
+            spectra_arr -= np.mean(spectra_arr, axis=1, keepdims=True)
+            spectra_arr /= np.std(spectra_arr, axis=1, keepdims=True)
+
+            # autoscale
+            spectra_arr /= np.std(spectra_arr, axis=0, keepdims=True)
+
+            # plt.figure()
+            # for i, spectrum in enumerate(spectra_arr[:5, :]):
+            #     plt.plot(x_mean, spectrum, label='i')
+            # plt.legend()
+            # plt.show()
+
+            # exit()
+
 
         # make mask from the summed array
         mask = np.zeros_like(temp)
@@ -180,7 +216,11 @@ class DecomposeCube(Cube):
         self.signal.learning_results.summary()
 
         if plot:
-            self.signal.plot_explained_variance_ratio(threshold=0.00001, xaxis_type='number')  # 1 thousandth
+            # threshold = 0.001  # 99.9 % -
+            # threshold = 0.0001  # 99.99 % -
+            threshold = 0.00001  # 99.999 % - thousandth of a percent
+
+            self.signal.plot_explained_variance_ratio(threshold=threshold, xaxis_type='number')  # 1 thousandth
             plt.show()
             self.signal.plot_decomposition_results()
             plt.show()
@@ -304,7 +344,7 @@ class ClusterCube(DecomposeCube):
         axes[1].set_ylabel('')
         axes[1].set_xlabel(r'Wavelength / $\mu$m')
 
-        fig2.legend()
+        fig2.legend(fontsize='small')
         plt.tight_layout()
 
         if save:
