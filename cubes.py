@@ -19,6 +19,7 @@ from sklearn.preprocessing import normalize
 from sklearn.metrics.pairwise import cosine_distances, euclidean_distances
 from sklearn.metrics.pairwise import cosine_similarity
 # sns.set()
+import scipy.signal
 
 
 class Cube(object):
@@ -161,38 +162,20 @@ class Cube(object):
 
         if process == 'chem':
 
-            # fit polynomial to the mean spectrum and subtract from spectra
-            mean = np.mean(spectra_arr, axis=0)
-            deg = 6
-            coefs = np.polyfit(self.wavelengths, mean, deg=deg)
-            ffit = np.polyval(coefs, self.wavelengths)
+            # fit polynomial to mean spectrum and subtract from spectra
+            # deg = 9
+            # ffit = self.polyfit_mean_spectrum(deg=deg, data=spectra_arr)
+            # spectra_arr -= ffit
 
-            plt.figure()
-            plt.plot(self.wavelengths, mean, linewidth=1, label='mean spectrum')
-            plt.plot(self.wavelengths, ffit, linewidth=1, label='polynomial of degree {}'.format(deg))
-            plt.plot(self.wavelengths, mean - ffit, linewidth=1, label='fit subtracted mean')
-            plt.title('Polynomial of degree {} fit to mean spectrum'.format(deg), fontsize='medium')
-            plt.xlabel(r'Wavelength / $\mu$m')
-            plt.legend(fontsize='small')
-            plt.show()
-
+            ffit = scipy.signal.savgol_filter(np.mean(spectra_arr, axis=0), 29, 3)
             spectra_arr -= ffit
 
             # standard normal variate
             spectra_arr -= np.mean(spectra_arr, axis=1, keepdims=True)
-            spectra_arr /= np.std(spectra_arr, axis=1, keepdims=True)
+            # spectra_arr /= np.std(spectra_arr, axis=1, keepdims=True)
 
             # autoscale
             spectra_arr /= np.std(spectra_arr, axis=0, keepdims=True)
-
-            # plt.figure()
-            # for i, spectrum in enumerate(spectra_arr[:5, :]):
-            #     plt.plot(x_mean, spectrum, label='i')
-            # plt.legend()
-            # plt.show()
-
-            # exit()
-
 
         # make mask from the summed array
         mask = np.zeros_like(temp)
@@ -205,6 +188,31 @@ class Cube(object):
         self.spectra_index_arr = spectra_index_arr
         self.spectra_arr = spectra_arr
         self.mask = mask
+
+    def polyfit_mean_spectrum(self, deg, data=None):
+
+        # fit polynomial to the mean spectrum and subtract from spectra
+        if data is None:
+            mean = np.mean(self.spectra_arr, axis=0)
+        else:
+            mean = np.mean(data, axis=0)
+        # coefs = np.polyfit(self.wavelengths, mean, deg=deg)
+        # ffit = np.polyval(coefs, self.wavelengths)
+
+        ffit = scipy.signal.savgol_filter(mean, 29, 3)
+
+        fig, ax = plt.subplots()
+        ax.plot(self.wavelengths, mean, linewidth=1, label='mean spectrum')
+        ax.plot(self.wavelengths, ffit, linewidth=1, label='polynomial of degree {}'.format(deg))
+        ax.plot(self.wavelengths, mean - ffit, linewidth=1, label='fit subtracted mean')
+        # ax.plot(self.wavelengths, smoothed_mean, linewidth=1, label='smoothed_mean')
+        # ax.plot(self.wavelengths, mean - smoothed_mean, linewidth=1, label='smooth subtracted mean')
+        ax.set_title('Polynomial of degree {} fit to mean spectrum'.format(deg), fontsize='medium')
+        ax.set_xlabel(r'Wavelength / $\mu$m')
+        fig.legend(fontsize='small')
+        fig.show()
+
+        return ffit
 
 
 class DecomposeCube(Cube):
@@ -309,14 +317,14 @@ class ClusterCube(DecomposeCube):
         fig1, axes = plt.subplots(1, 2, figsize=(10, 6))
         # fig.suptitle('')
 
-        axes[0].set_title('Mean', fontsize='medium')
+        axes[0].set_title('Mean Image', fontsize='medium')
         axes[0].set_ylabel('pixels / px')
         axes[0].set_xlabel('pixels / px')
         axes[0].imshow(signal_data)
 
         # Reset matplotlib colour cycle
         # axes[1].set_prop_cycle(None)
-        axes[1].set_title('K-Means, n_clusters: {}'.format(n_clusters), fontsize='medium')
+        axes[1].set_title('Mean Image and Labels from K-Means with {} clusters'.format(n_clusters), fontsize='medium')
         axes[1].set_ylabel('pixels / px')
         axes[1].set_xlabel('pixels / px')
         axes[1].imshow(signal_data)
@@ -330,17 +338,22 @@ class ClusterCube(DecomposeCube):
 
         fig2, axes = plt.subplots(2, 1, figsize=(6, 6))
 
-        axes[0].set_title('Cluster Centers Spectra', fontsize='medium')
+        axes[0].set_title('Spectra of Cluster Centers', fontsize='medium')
         for i in range(centers.shape[0]):
             axes[0].plot(self.wavelengths / 1000, centers[i], linewidth=1, c=palette[i], label='Cluster {}'.format(i))
         axes[0].set_ylabel('')
         axes[0].set_xlabel('')
 
-        mean_sub = centers - np.mean(self.spectra_arr, axis=0)
+        # fit polynomial to the mean spectrum and subtract from centers
+        deg = 10
+        ffit = self.polyfit_mean_spectrum(deg=deg)
 
-        axes[1].set_title('Mean Subtracted Cluster Center Spectra', fontsize='medium')
-        for i in range(mean_sub.shape[0]):
-            axes[1].plot(self.wavelengths / 1000, mean_sub[i], linewidth=1, c=palette[i])
+
+        axes[1].set_title('Polynomial Subtracted Spectra of Cluster Centers', fontsize='medium')
+        for i in range(centers.shape[0]):
+            # mean_sub = scipy.signal.savgol_filter(centers[i] - ffit, 19, 3)
+            mean_sub = centers[i] - ffit
+            axes[1].plot(self.wavelengths / 1000, mean_sub, linewidth=1, c=palette[i])
         axes[1].set_ylabel('')
         axes[1].set_xlabel(r'Wavelength / $\mu$m')
 

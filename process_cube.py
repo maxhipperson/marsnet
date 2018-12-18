@@ -3,24 +3,26 @@ from cubes import *
 src_dir = '/Users/maxhipperson/Documents/Year 4/marsnet/data.nosync'
 
 files = {
-    'river': ['frt00003bfb_07_if166j_mtr3.hdr', 'frt00003bfb.tif'],
-    'crater': ['frt00009a16_07_if166j_mtr3.hdr', 'frt00009a16.tif'],
-    'big crater': ['frt00009a9a_07_if166j_mtr3.hdr', 'frt00009a9a.tif'],
-    'who knows': ['hrl000054bb_07_if182j_mtr3.hdr', 'hr1000054bb.tif']
+    'Mawrth Vallis': ['frt00003bfb_07_if166j_mtr3.hdr', 'frt00003bfb.tif'],
+    'Oxia Planum': ['frt00009a16_07_if166j_mtr3.hdr', 'frt00009a16.tif'],
+    'Jezero Crater': ['frt00005c5e_07_if166j_mtr3.hdr', 'frt00005c5e.tif'],
+    'Source Crater 1': ['', ''],
+    'Source Crater 2': ['', '']
 }
 
-img = 'river'
-# img = 'crater'
-# img = 'big crater'
-# img = 'who knows'
+img = 'Mawrth Vallis'
+# img = 'Oxia Planum'
+# img = 'Jezero Crater'
+# img = 'Source Crater 1'
+# img = 'Source Crater 2'
 
 # savedir = 'raw'
 savedir = 'rescale'
 # savedir = 'pca_model_99.99'
 
 # crop = 100
-crop = 400
-# crop = None
+# crop = 400
+crop = None
 
 if crop is None:
     savedir = files[img][1].split('.')[0] + '_' + savedir
