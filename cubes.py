@@ -20,6 +20,7 @@ from sklearn.metrics.pairwise import cosine_distances, euclidean_distances
 from sklearn.metrics.pairwise import cosine_similarity
 # sns.set()
 import scipy.signal
+import pickle as pkl
 
 
 class Cube(object):
@@ -34,10 +35,13 @@ class Cube(object):
         print('Loaded {}:'.format(hdr_path))
         print('Loaded {}'.format(im_path))
 
+        self.wavelengths = np.array(self.hdr['wavelength'])
         self.signal = self.im.copy()
 
         self._crop_signal(lower=wavelength_min, upper=wavelength_max, limit_type='wavelength')
         self._set_data(self.signal)
+
+        self.removed_wavelengths = None
 
         self.spectra_index_arr = None
         self.spectra_arr = None
@@ -67,33 +71,38 @@ class Cube(object):
     def _crop_signal(self, lower, upper, limit_type='wavelength'):
 
         # find the index of the boundary wavelengths in the header
-        wavelengths = np.array(self.hdr['wavelength'])
+        lower_index, upper_index = self._get_index_from_wavelengths(lower, upper, limit_type)
+
+        # crop the signal to the index range from header
+        self.signal.crop_signal1D(lower_index, upper_index)
+        self.wavelengths = self.wavelengths[lower_index:upper_index]
+
+        print('Cropped signal')
+        print('wavelength: {} - {} {}'.format(lower, upper, self.hdr['wavelength units']))
+        print('index: {} - {}'.format(lower_index, upper_index))
+
+        print(self.signal.axes_manager)
+
+    def _get_index_from_wavelengths(self, lower, upper, limit_type='wavelength'):
 
         if limit_type == 'wavelength':
 
             if lower is None:
                 lower_index = None
             else:
-                lower_index = np.argmax(wavelengths >= lower)
+                lower_index = np.argmax(self.wavelengths >= lower)
 
             if upper is None:
                 upper_index = None
             else:
-                upper_index = np.argmax(wavelengths > upper) - 1
+                upper_index = np.argmax(self.wavelengths > upper) - 1
 
         else:
             lower_index = lower
             upper_index = upper
 
-        # crop the signal to the index range from header
-        self.signal.crop_signal1D(lower_index, upper_index)
-        self.wavelengths = wavelengths[lower_index:upper_index]
+        return lower_index, upper_index
 
-        print('Cropped signal')
-        print('wavelength: {} - {}'.format(lower, upper, self.hdr['wavelength units']))
-        print('index: {} - {}'.format(lower_index, upper_index))
-
-        print(self.signal.axes_manager)
 
     def _set_data(self, signal):
 
@@ -104,6 +113,29 @@ class Cube(object):
 
         self.signal.plot()
         plt.show()
+
+    def remove_section_from_signal(self, lower, upper, limit_type='wavelength'):
+
+        # find the index of the boundary wavelengths in the header
+        lower_index, upper_index = self._get_index_from_wavelengths(lower, upper, limit_type)
+
+        # crop the signal to the index range from header
+        temp1 = self.signal.isig[:lower_index]
+        temp2 = self.signal.isig[upper_index:]
+
+        self.signal = hs.stack([temp1, temp2], axis=2)
+        self._set_data(self.signal)
+
+        self.wavelengths = np.delete(self.wavelengths, np.s_[lower_index:upper_index])
+        self.removed_wavelengths = {'lower':lower,
+                                    'upper':upper,
+                                    'lower_index':lower_index,
+                                    'upper_index':upper_index}
+
+        print('Removed section from signal')
+        print('removed wavelengths: {} - {} {}'.format(lower, upper, self.hdr['wavelength units']))
+        print('removed indexs: {} - {}'.format(lower_index, upper_index))
+        print(self.signal.axes_manager)
 
     def crop_image(self, new_size, centre=None):
 
@@ -162,13 +194,11 @@ class Cube(object):
 
         if process == 'chem':
 
-            # fit polynomial to mean spectrum and subtract from spectra
-            # deg = 9
-            # ffit = self.polyfit_mean_spectrum(deg=deg, data=spectra_arr)
-            # spectra_arr -= ffit
 
-            ffit = scipy.signal.savgol_filter(np.mean(spectra_arr, axis=0), 29, 3)
-            spectra_arr -= ffit
+
+            # apply Savitzky–Golay filter to mean spectrum and subtract from spectra
+            # ffit = scipy.signal.savgol_filter(np.mean(spectra_arr, axis=0), 29, 3)
+            # spectra_arr -= ffit
 
             # standard normal variate
             spectra_arr -= np.mean(spectra_arr, axis=1, keepdims=True)
@@ -189,7 +219,7 @@ class Cube(object):
         self.spectra_arr = spectra_arr
         self.mask = mask
 
-    def polyfit_mean_spectrum(self, deg, data=None):
+    def fit_mean_spectrum(self, plot=True, save=False, data=None):
 
         # fit polynomial to the mean spectrum and subtract from spectra
         if data is None:
@@ -199,20 +229,50 @@ class Cube(object):
         # coefs = np.polyfit(self.wavelengths, mean, deg=deg)
         # ffit = np.polyval(coefs, self.wavelengths)
 
-        ffit = scipy.signal.savgol_filter(mean, 29, 3)
+        window = 29
+        order = 3
+        ffit = scipy.signal.savgol_filter(mean, window, order)
 
         fig, ax = plt.subplots()
         ax.plot(self.wavelengths, mean, linewidth=1, label='mean spectrum')
-        ax.plot(self.wavelengths, ffit, linewidth=1, label='polynomial of degree {}'.format(deg))
-        ax.plot(self.wavelengths, mean - ffit, linewidth=1, label='fit subtracted mean')
-        # ax.plot(self.wavelengths, smoothed_mean, linewidth=1, label='smoothed_mean')
-        # ax.plot(self.wavelengths, mean - smoothed_mean, linewidth=1, label='smooth subtracted mean')
-        ax.set_title('Polynomial of degree {} fit to mean spectrum'.format(deg), fontsize='medium')
+        # ax.plot(self.wavelengths, ffit, linewidth=1, label='polynomial of degree {}'.format(deg))
+        # ax.plot(self.wavelengths, mean - ffit, linewidth=1, label='fit subtracted mean')
+        ax.plot(self.wavelengths, ffit, linewidth=1, label='smoothed mean')
+        ax.plot(self.wavelengths, mean - ffit, linewidth=1, label='residuals')
+        # ax.set_title('Polynomial of degree {} fit to mean spectrum'.format(deg), fontsize='medium')
+        ax.set_title('Savgol Filter Applied to Mean Spectrum\nOrder {}, Window {}'.format(order, window), fontsize='medium')
         ax.set_xlabel(r'Wavelength / $\mu$m')
         fig.legend(fontsize='small')
-        fig.show()
+
+        plt.tight_layout()
+
+        if save:
+            fig.savefig(os.path.join(self.savedir, 'savgol_filter.png'), dpi=300)
+
+        if plot:
+            fig.show()
+        else:
+            fig.close()
 
         return ffit
+
+    def save_spectral_data(self, savename='spectral_data.pkl'):
+
+        data = {'wavelengths': self.wavelengths,
+                'signal_arr': self.Z,
+                'spectra_index_arr': self.spectra_index_arr,
+                'spectra_arr': self.spectra_arr,
+                'mask': self.mask}
+
+        savepath = os.path.join(self.savedir, savename)
+        if not os.path.exists(savepath):
+            with open(savepath, 'wb') as file:
+                pkl.dump(data, file)
+            for key in data.keys():
+                print('Saved {} to {}'.format(key, savepath))
+        else:
+            raise FileExistsError('{} exists!'.format_map(savepath))
+
 
 
 class DecomposeCube(Cube):
@@ -324,7 +384,7 @@ class ClusterCube(DecomposeCube):
 
         # Reset matplotlib colour cycle
         # axes[1].set_prop_cycle(None)
-        axes[1].set_title('Mean Image and Labels from K-Means with {} clusters'.format(n_clusters), fontsize='medium')
+        axes[1].set_title('K-Means with {} clusters'.format(n_clusters), fontsize='medium')
         axes[1].set_ylabel('pixels / px')
         axes[1].set_xlabel('pixels / px')
         axes[1].imshow(signal_data)
@@ -338,22 +398,24 @@ class ClusterCube(DecomposeCube):
 
         fig2, axes = plt.subplots(2, 1, figsize=(6, 6))
 
-        axes[0].set_title('Spectra of Cluster Centers', fontsize='medium')
+        axes[0].set_title('Cluster Centers', fontsize='medium')
         for i in range(centers.shape[0]):
             axes[0].plot(self.wavelengths / 1000, centers[i], linewidth=1, c=palette[i], label='Cluster {}'.format(i))
         axes[0].set_ylabel('')
         axes[0].set_xlabel('')
 
         # fit polynomial to the mean spectrum and subtract from centers
-        deg = 10
-        ffit = self.polyfit_mean_spectrum(deg=deg)
+        ffit = self.fit_mean_spectrum(plot, save)
 
+        axes[1].set_title('Mean Subtracted Cluster Centers', fontsize='medium')
 
-        axes[1].set_title('Polynomial Subtracted Spectra of Cluster Centers', fontsize='medium')
         for i in range(centers.shape[0]):
-            # mean_sub = scipy.signal.savgol_filter(centers[i] - ffit, 19, 3)
+
             mean_sub = centers[i] - ffit
+            # mean_sub = scipy.signal.savgol_filter(mean_sub, 11, 3)  # TODO smooth mean subbed cluster centers
+
             axes[1].plot(self.wavelengths / 1000, mean_sub, linewidth=1, c=palette[i])
+
         axes[1].set_ylabel('')
         axes[1].set_xlabel(r'Wavelength / $\mu$m')
 
@@ -361,8 +423,8 @@ class ClusterCube(DecomposeCube):
         plt.tight_layout()
 
         if save:
-            fig1.savefig(os.path.join(self.savedir, 'cluster_map.n_clusters_{}.png'.format(n_clusters)), dpi=300)
-            fig2.savefig(os.path.join(self.savedir, 'cluster_spectra.n_clusters_{}.png'.format(n_clusters)), dpi=300)
+            fig1.savefig(os.path.join(self.savedir, '{}_clusters.map.png'.format(n_clusters)), dpi=300)
+            fig2.savefig(os.path.join(self.savedir, '{}_clusters.spectra.png'.format(n_clusters)), dpi=300)
 
         if plot:
             plt.show()
@@ -422,16 +484,59 @@ if __name__ == '__main__':
 
     src_dir = '/Users/maxhipperson/Documents/Year 4/marsnet/data.nosync'
 
-    # river basin
-    hdr_name = 'frt00003bfb_07_if166j_mtr3.hdr'
-    im_name = 'frt00003bfb.tif'
+    files = {
+        'mawrth_vallis': ['frt00003bfb_07_if166j_mtr3.hdr', 'frt00003bfb.tif'],
+        'oxia_planum': ['frt00009a16_07_if166j_mtr3.hdr', 'frt00009a16.tif'],
+        'jezero_crater': ['frt00005c5e_07_if166j_mtr3.hdr', 'frt00005c5e.tif'],
+        'source_crater_1': ['', ''],
+        'source_crater_2': ['', '']
+    }
+
+    img = 'mawrth_vallis'
+    # img = 'oxia_planum'
+    # img = 'jezero_crater'
+    # img = 'source_crater_1'
+    # img = 'source_crater_2'
+
+    # crop = None
+    crop = 100
+    # crop = 200
+    # crop = 300
+    # crop = 400
+
+    if crop is None:
+        savedir = img
+    else:
+        savedir = img + '/{}_crop'.format(crop)
+
+    savedir = os.path.join('/Users/maxhipperson/Documents/Year 4/marsnet/results', savedir)
+
+    try:
+        os.makedirs(savedir)
+    except OSError:
+        pass
 
     cube = ClusterCube(src_dir,
-                hdr_name,
-                im_name,
-                wavelength_min=None,
-                wavelength_max=2800)
-    # cube.plot()
+                       files[img][0],
+                       files[img][1],
+                       # wavelength_min=730,
+                       # wavelength_min=1000,
+                       # wavelength_min=2820,
+                       # wavelength_max=2800,
+                       savedir=savedir
+                       )
+    cube.plot()
+
+    if crop is not None:
+        cube.crop_image(crop)
+        cube.plot()
+
+    cube.preprocess_spectra(
+        # process='rescale',
+        # process='l1,
+        # process='l2'
+        process='chem'
+    )
 
     # cube.run_pca(plot=True)
     # cube.run_ica(10, plot=True)
@@ -439,3 +544,6 @@ if __name__ == '__main__':
 
     # cube.crop_image(new_size=100)
     # cube.plot()
+
+    cube.save_spectral_data()
+

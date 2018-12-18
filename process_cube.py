@@ -1,81 +1,170 @@
 from cubes import *
 
-src_dir = '/Users/maxhipperson/Documents/Year 4/marsnet/data.nosync'
+src_dir = '/Users/maxhipperson/Documents/Year 4/marsnet/data.nosync/hs_imgs'
+dst_dir = '/Users/maxhipperson/Documents/Year 4/marsnet/data.nosync/hs_results'
 
 files = {
-    'Mawrth Vallis': ['frt00003bfb_07_if166j_mtr3.hdr', 'frt00003bfb.tif'],
-    'Oxia Planum': ['frt00009a16_07_if166j_mtr3.hdr', 'frt00009a16.tif'],
-    'Jezero Crater': ['frt00005c5e_07_if166j_mtr3.hdr', 'frt00005c5e.tif'],
-    'Source Crater 1': ['', ''],
-    'Source Crater 2': ['', '']
+    'mawrth_vallis': ['frt00003bfb_07_if166j_mtr3.hdr', 'frt00003bfb.tif'],
+    'oxia_planum': ['frt00009a16_07_if166j_mtr3.hdr', 'frt00009a16.tif'],
+    'jezero_crater': ['frt00005c5e_07_if166j_mtr3.hdr', 'frt00005c5e.tif'],
+    'source_crater_1': ['frt00009568_07_if163j_mtr3.hdr', 'frt00009568.tif'],
+    'source_crater_2': ['frt000083dc_07_if164j_mtr3.hdr', 'frt000083dc.tif']
 }
 
-img = 'Mawrth Vallis'
-# img = 'Oxia Planum'
-# img = 'Jezero Crater'
-# img = 'Source Crater 1'
-# img = 'Source Crater 2'
+##############################
+# Choose hs image
 
-# savedir = 'raw'
-savedir = 'rescale'
-# savedir = 'pca_model_99.99'
-
-# crop = 100
-# crop = 400
-crop = None
-
-if crop is None:
-    savedir = files[img][1].split('.')[0] + '_' + savedir
-else:
-    savedir = files[img][1].split('.')[0] + '_' + savedir + '_{}_crop'.format(crop)
-
-savedir = os.path.join('/Users/maxhipperson/Documents/Year 4/marsnet/results', savedir)
+img = 'mawrth_vallis'
+# img = 'oxia_planum'
+# img = 'jezero_crater'
+# img = 'source_crater_1'
+# img = 'source_crater_2'
 
 # save = True
 save = False
 
+##############################
+
+# plot = False
+plot = True
+
+# plot_decomposition = False
+plot_decomposition = True
+
+# plot_clustering = False
+plot_clustering = True
+
+##############################
+
+# wavelength_min = None
+# wavelength_max = None
+
+# wavelength_min = 730
+wavelength_min = 1000
+# wavelength_min = 2820
+# wavelength_min = 3500
+
+wavelength_max = 2800
+
+##############################
+
+# crop_section = True
+crop_section = False
+
+crop_section_min = 2800
+# crop_section_max = 3000
+crop_section_max = 3500
+
+##############################
+
+pca = False
+# pca = True
+
+ica = False
+# ica = True
+
+n_components_ica = 20
+
+build_signal = False
+# build_signal = True
+
+n_components_model = 5
+
+##############################
+
+# crop = None
+# crop = 100
+crop = 200
+# crop = 300
+# crop = 400
+
+##############################
+
+# preprocess = 'rescale'
+# preprocess='l1,
+# preprocess='l2'
+preprocess = 'chem'
+
+##############################
+
+k_min = 1
+k_max = 15
+
+# n_clusters = 'elbow'
+n_clusters = 4
+
+##############################
+# Run script
+
+savedir = [dst_dir, img]
+
+cond1 = wavelength_min is None
+cond2 = wavelength_max is None
+
+# if cond1 and cond2:
+#     savedir.append('wl_all'.format(wavelength_min, wavelength_max))
+# elif cond1 and not cond2:
+#     savedir.append('wl_{}:'.format(wavelength_min))
+# elif not cond1 and cond2:
+#     savedir.append('wl_:{}'.format(wavelength_max))
+# else:
+savedir.append('wl_{}-{}'.format(wavelength_min, wavelength_max))
+
+if build_signal:
+    if pca:
+        savedir.append('pca_model_{}_components'.format(n_components_model))
+    elif ica:
+        savedir.append('ica_model_{}_components'.format(n_components_model))
+
+if crop is not None:
+    savedir.append('{}_crop'.format(crop))
+else:
+    savedir.append('no_crop'.format(crop))
+
+savedir.append('preprocess_{}'.format(preprocess))
+
+savedir = os.path.join(*savedir)
+
 if save:
         try:
             os.makedirs(savedir)
+            print('Made {}'.format(savedir))
         except OSError:
-            pass
+            print(OSError('{} exists!'.format(savedir)))
 
+# Crop the signal range in the class instantiation or
+# remove a section from the signal with the method
 
 cube = ClusterCube(src_dir,
                    files[img][0],
                    files[img][1],
-                   wavelength_min=None,
-                   # wavelength_min=1000,
-                   wavelength_max=2800,
-                   # wavelength_max=None,
+                   wavelength_min=wavelength_min,
+                   wavelength_max=wavelength_max,
                    savedir=savedir
                    )
-# cube.plot()
+if plot:
+    cube.plot()
 
-# cube.run_pca(plot=False)
-# cube.run_ica(30, plot=True)
-# cube.build_signal_from_decomposition([1, 2, 3, 4], plot=False)
+if crop_section:
+    cube.remove_section_from_signal(crop_section_min, crop_section_max)
+    if plot:
+        cube.plot()
+
+if pca:
+    cube.run_pca(plot=plot_decomposition)
+    if ica:
+        cube.run_ica(n_components_ica, plot=plot_decomposition)
+    if build_signal:
+        cube.build_signal_from_decomposition(n_components_model, plot=plot_decomposition)
 
 if crop is not None:
     cube.crop_image(crop)
-    # cube.plot()
+    if plot:
+        cube.plot()
 
-cube.preprocess_spectra(
-    # process='rescale',
-    # process='l1,
-    # process='l2'
-    process='chem'
-)
+cube.preprocess_spectra(process=preprocess)
 
-n_clusters = 4
-# n_clusters = cube.elbow(
-#     k_min=1,
-#     k_max=15,
-#     plot=False,
-#     save=save
-# )
+if n_clusters is 'elbow':
+    n_clusters = cube.elbow(k_min=1, k_max=15, plot=plot_clustering, save=save)
 
-label_arr, centers = cube.k_means(n_clusters,
-                                  # plot=False,
-                                  save=save
-                                  )
+label_arr, centers = cube.k_means(n_clusters, plot=plot_clustering, save=save)
