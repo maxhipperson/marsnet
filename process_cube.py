@@ -16,12 +16,12 @@ files = {
 
 img = 'mawrth_vallis'
 # img = 'oxia_planum'
-# img = 'jezero_crater'
-# img = 'source_crater_1'
-# img = 'source_crater_2'
+# img = 'jezero_crater'  # todo Process envi file to tif
+# img = 'source_crater_1'  # todo Process envi file to tif
+# img = 'source_crater_2'  # todo Process envi file to tif
 
-# save = True
-save = False
+save = True
+# save = False
 
 ##############################
 
@@ -36,17 +36,19 @@ plot_clustering = True
 
 ##############################
 
-# wavelength_min = None
+wavelength_min = None
 # wavelength_max = None
 
 # wavelength_min = 730
-wavelength_min = 1000
+# wavelength_min = 1000
 # wavelength_min = 2820
 # wavelength_min = 3500
 
 wavelength_max = 2800
 
 ##############################
+
+# Can't do as well as cropping the signal... todo sort?
 
 # crop_section = True
 crop_section = False
@@ -57,8 +59,8 @@ crop_section_max = 3500
 
 ##############################
 
-pca = False
-# pca = True
+# pca = False
+pca = True
 
 ica = False
 # ica = True
@@ -72,9 +74,9 @@ n_components_model = 5
 
 ##############################
 
-# crop = None
+crop = None
 # crop = 100
-crop = 200
+# crop = 200
 # crop = 300
 # crop = 400
 
@@ -91,7 +93,8 @@ k_min = 1
 k_max = 15
 
 # n_clusters = 'elbow'
-n_clusters = 4
+# n_clusters = 4
+n_clusters = 3
 
 ##############################
 # Run script
@@ -101,14 +104,9 @@ savedir = [dst_dir, img]
 cond1 = wavelength_min is None
 cond2 = wavelength_max is None
 
-# if cond1 and cond2:
-#     savedir.append('wl_all'.format(wavelength_min, wavelength_max))
-# elif cond1 and not cond2:
-#     savedir.append('wl_{}:'.format(wavelength_min))
-# elif not cond1 and cond2:
-#     savedir.append('wl_:{}'.format(wavelength_max))
-# else:
 savedir.append('wl_{}-{}'.format(wavelength_min, wavelength_max))
+
+# todo Add dirname for removing wl section
 
 if build_signal:
     if pca:
@@ -164,6 +162,8 @@ if crop is not None:
 
 cube.preprocess_spectra(process=preprocess)
 
+
+# If set to use elbow then run elbow to get the estimated number of clusters
 if n_clusters is 'elbow':
     n_clusters = cube.elbow(k_min=1, k_max=15, plot=plot_clustering, save=save)
 

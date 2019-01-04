@@ -194,8 +194,6 @@ class Cube(object):
 
         if process == 'chem':
 
-
-
             # apply Savitzky–Golay filter to mean spectrum and subtract from spectra
             # ffit = scipy.signal.savgol_filter(np.mean(spectra_arr, axis=0), 29, 3)
             # spectra_arr -= ffit
