@@ -16,12 +16,12 @@ files = {
 
 img = 'mawrth_vallis'
 # img = 'oxia_planum'
-# img = 'jezero_crater'  # todo Process envi file to tif
-# img = 'source_crater_1'  # todo Process envi file to tif
-# img = 'source_crater_2'  # todo Process envi file to tif
+# img = 'jezero_crater'
+# img = 'source_crater_1'
+# img = 'source_crater_2'
 
-save = True
-# save = False
+# save = True
+save = False
 
 ##############################
 
@@ -62,8 +62,8 @@ crop_section_max = 3500
 # pca = False
 pca = True
 
-ica = False
-# ica = True
+# ica = False
+ica = True
 
 n_components_ica = 20
 
@@ -83,7 +83,7 @@ crop = None
 ##############################
 
 # preprocess = 'rescale'
-# preprocess='l1,
+# preprocess='l1'
 # preprocess='l2'
 preprocess = 'chem'
 
@@ -93,8 +93,9 @@ k_min = 1
 k_max = 15
 
 # n_clusters = 'elbow'
-# n_clusters = 4
-n_clusters = 3
+n_clusters = 4
+# n_clusters = 5
+# n_clusters = 6
 
 ##############################
 # Run script
@@ -104,7 +105,10 @@ savedir = [dst_dir, img]
 cond1 = wavelength_min is None
 cond2 = wavelength_max is None
 
-savedir.append('wl_{}-{}'.format(wavelength_min, wavelength_max))
+if crop_section:
+    savedir.append('crop_sec_{}-{}'.format(crop_section_min, crop_section_max))
+else:
+    savedir.append('wl_{}-{}'.format(wavelength_min, wavelength_max))
 
 # todo Add dirname for removing wl section
 
@@ -115,7 +119,7 @@ if build_signal:
         savedir.append('ica_model_{}_components'.format(n_components_model))
 
 if crop is not None:
-    savedir.append('{}_crop'.format(crop))
+    savedir.append('crop_{}'.format(crop))
 else:
     savedir.append('no_crop'.format(crop))
 

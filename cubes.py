@@ -217,7 +217,7 @@ class Cube(object):
         self.spectra_arr = spectra_arr
         self.mask = mask
 
-    def fit_mean_spectrum(self, plot=True, save=False, data=None):
+    def fit_mean_spectrum(self, save=False, data=None):
 
         # fit polynomial to the mean spectrum and subtract from spectra
         if data is None:
@@ -246,11 +246,6 @@ class Cube(object):
 
         if save:
             fig.savefig(os.path.join(self.savedir, 'savgol_filter.png'), dpi=300)
-
-        if plot:
-            fig.show()
-        else:
-            fig.close()
 
         return ffit
 
@@ -371,22 +366,32 @@ class ClusterCube(DecomposeCube):
 
         palette = sns.color_palette('Set1', n_colors=n_clusters)
         cmap = ListedColormap(palette.as_hex())
+        #
+        # fig1, axes = plt.subplots(1, 2, figsize=(10, 6))
+        # # fig.suptitle('')
+        #
+        # axes[0].set_title('Mean Image', fontsize='medium')
+        # axes[0].set_ylabel('pixels / px')
+        # axes[0].set_xlabel('pixels / px')
+        # axes[0].imshow(signal_data)
+        #
+        # # Reset matplotlib colour cycle
+        # # axes[1].set_prop_cycle(None)
+        # axes[1].set_title('K-Means with {} clusters'.format(n_clusters), fontsize='medium')
+        # axes[1].set_ylabel('pixels / px')
+        # axes[1].set_xlabel('pixels / px')
+        # axes[1].imshow(signal_data)
+        # im = axes[1].imshow(label_mask, cmap=cmap, alpha=0.4)
+        # # plt.colorbar(im)
 
-        fig1, axes = plt.subplots(1, 2, figsize=(10, 6))
+        fig1, ax = plt.subplots(figsize=(10, 6))
         # fig.suptitle('')
 
-        axes[0].set_title('Mean Image', fontsize='medium')
-        axes[0].set_ylabel('pixels / px')
-        axes[0].set_xlabel('pixels / px')
-        axes[0].imshow(signal_data)
-
-        # Reset matplotlib colour cycle
-        # axes[1].set_prop_cycle(None)
-        axes[1].set_title('K-Means with {} clusters'.format(n_clusters), fontsize='medium')
-        axes[1].set_ylabel('pixels / px')
-        axes[1].set_xlabel('pixels / px')
-        axes[1].imshow(signal_data)
-        im = axes[1].imshow(label_mask, cmap=cmap, alpha=0.4)
+        ax.set_title('K-Means with {} clusters'.format(n_clusters), fontsize='medium')
+        ax.set_ylabel('pixels / px')
+        ax.set_xlabel('pixels / px')
+        ax.imshow(signal_data)
+        im = ax.imshow(label_mask, cmap=cmap, alpha=0.4)
         # plt.colorbar(im)
 
         plt.tight_layout()
@@ -403,7 +408,7 @@ class ClusterCube(DecomposeCube):
         axes[0].set_xlabel('')
 
         # fit polynomial to the mean spectrum and subtract from centers
-        ffit = self.fit_mean_spectrum(plot, save)
+        ffit = self.fit_mean_spectrum(save)
 
         axes[1].set_title('Mean Subtracted Cluster Centers', fontsize='medium')
 
