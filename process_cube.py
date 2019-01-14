@@ -59,11 +59,11 @@ crop_section_max = 3500
 
 ##############################
 
-# pca = False
-pca = True
+pca = False
+# pca = True
 
-# ica = False
-ica = True
+ica = False
+# ica = True
 
 n_components_ica = 20
 
@@ -74,8 +74,8 @@ n_components_model = 5
 
 ##############################
 
-crop = None
-# crop = 100
+# crop = None
+crop = 100
 # crop = 200
 # crop = 300
 # crop = 400
@@ -89,11 +89,13 @@ preprocess = 'chem'
 
 ##############################
 
-k_min = 1
-k_max = 15
+k_min = 2
+# k_max = 15
+k_max = 5
 
 # n_clusters = 'elbow'
-n_clusters = 4
+n_clusters = 'silhouette'
+# n_clusters = 4
 # n_clusters = 5
 # n_clusters = 6
 
@@ -169,6 +171,8 @@ cube.preprocess_spectra(process=preprocess)
 
 # If set to use elbow then run elbow to get the estimated number of clusters
 if n_clusters is 'elbow':
-    n_clusters = cube.elbow(k_min=1, k_max=15, plot=plot_clustering, save=save)
+    n_clusters = cube.elbow(k_min=k_min, k_max=k_max, plot=plot_clustering, save=save)
+if n_clusters is 'silhouette':
+    n_clusters = cube.silhouette(k_min=k_min, k_max=k_max)
 
 label_arr, centers = cube.k_means(n_clusters, plot=plot_clustering, save=save)

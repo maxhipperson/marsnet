@@ -6,12 +6,11 @@ import numpy.ma as ma
 import matplotlib.pyplot as plt
 import seaborn  as sns
 from matplotlib.colors import ListedColormap
-import matplotlib.ticker as ticker
-from pyclustering.cluster.elbow import elbow
 from pyclustering.cluster.kmeans import kmeans
-from pyclustering.cluster.xmeans import xmeans
 from pyclustering.cluster.center_initializer import kmeans_plusplus_initializer
-from pyclustering.utils.metric import type_metric, distance_metric;
+from pyclustering.cluster.elbow import elbow
+from pyclustering.utils.metric import type_metric, distance_metric
+from pyclustering.cluster.silhouette import silhouette_ksearch_type, silhouette_ksearch
 import hdbscan
 import fitsne
 from tqdm import tqdm
@@ -482,6 +481,22 @@ class ClusterCube(DecomposeCube):
         plt.show()
 
         return n_clusters
+
+    @timeit
+    def silhouette(self, k_min, k_max):
+
+        search_instance = silhouette_ksearch(self.spectra_arr, k_min, k_max, algorithm=silhouette_ksearch_type.KMEANS)
+        search_instance.process()
+        amount = search_instance.get_amount()
+        scores = search_instance.get_scores()
+
+        print('Silhouette scores:')
+        for key, value in scores.items():
+            print('{} clusters: {}'.format(key, value))
+
+        print('Recommended n_clusters: {}'.format(amount))
+
+        return amount
 
 if __name__ == '__main__':
 
