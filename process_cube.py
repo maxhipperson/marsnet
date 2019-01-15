@@ -1,7 +1,7 @@
 from cubes import *
 
-src_dir = '/Users/maxhipperson/Documents/Year 4/marsnet/data.nosync/hs_imgs'
-dst_dir = '/Users/maxhipperson/Documents/Year 4/marsnet/data.nosync/hs_results'
+src_dir = '/Users/maxhipperson/Documents/Year 4/marsnet/data.nosync/raw_data'
+dst_dir = '/Users/maxhipperson/Documents/Year 4/marsnet/data.nosync/hs_clustering_results'
 
 files = {
     'mawrth_vallis': ['frt00003bfb_07_if166j_mtr3.hdr', 'frt00003bfb.tif'],
@@ -39,12 +39,17 @@ plot_clustering = True
 wavelength_min = None
 # wavelength_max = None
 
+# wavelength limits recommended by Pete
+# wavelength_min = 1000
+wavelength_max = 2600
+
 # wavelength_min = 730
 # wavelength_min = 1000
 # wavelength_min = 2820
 # wavelength_min = 3500
+# wavelength_min = 3800
 
-wavelength_max = 2800
+# wavelength_max = 2800
 
 ##############################
 
@@ -65,10 +70,10 @@ pca = False
 ica = False
 # ica = True
 
-n_components_ica = 20
+n_components_ica = 5
 
-build_signal = False
-# build_signal = True
+# build_signal = False
+build_signal = True
 
 n_components_model = 5
 
@@ -82,6 +87,7 @@ crop = 100
 
 ##############################
 
+# preprocess = None
 # preprocess = 'rescale'
 # preprocess='l1'
 # preprocess='l2'
@@ -90,11 +96,13 @@ preprocess = 'chem'
 ##############################
 
 k_min = 2
+k_max = 6
+# k_max = 10
 # k_max = 15
-k_max = 5
 
 # n_clusters = 'elbow'
-n_clusters = 'silhouette'
+# n_clusters = 'silhouette'
+n_clusters = 3
 # n_clusters = 4
 # n_clusters = 5
 # n_clusters = 6
@@ -103,9 +111,6 @@ n_clusters = 'silhouette'
 # Run script
 
 savedir = [dst_dir, img]
-
-cond1 = wavelength_min is None
-cond2 = wavelength_max is None
 
 if crop_section:
     savedir.append('crop_sec_{}-{}'.format(crop_section_min, crop_section_max))

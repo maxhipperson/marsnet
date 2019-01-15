@@ -174,7 +174,7 @@ class Cube(object):
         temp = np.sum(data, axis=2)
 
         # make array of indicies of nonzero elements
-        spectra_index_arr = np.transpose(np.nonzero(temp)).tolist()
+        spectra_index_arr = np.transpose(np.nonzero(temp))
 
         # reshape spectra into n_spectra x l_spectra and remove all zero spectra (outside the image boundaries)
         spectra_arr = np.reshape(data, (x * y, ch))
@@ -248,23 +248,22 @@ class Cube(object):
 
         return ffit
 
-    def save_spectral_data(self, savename='spectral_data.pkl'):
+    def save_spectral_data(self):
 
-        data = {'wavelengths': self.wavelengths,
-                'signal_arr': self.Z,
-                'spectra_index_arr': self.spectra_index_arr,
-                'spectra_arr': self.spectra_arr,
-                'mask': self.mask}
+        data = {
+            'wavelengths': self.wavelengths,
+            'signal': self.Z,
+            'spectra_index_arr': self.spectra_index_arr,
+            'spectra_arr': self.spectra_arr
+        }
 
-        savepath = os.path.join(self.savedir, savename)
-        if not os.path.exists(savepath):
-            with open(savepath, 'wb') as file:
-                pkl.dump(data, file)
-            for key in data.keys():
-                print('Saved {} to {}'.format(key, savepath))
-        else:
-            raise FileExistsError('{} exists!'.format_map(savepath))
-
+        for filename, array in data.items():
+            savepath = os.path.join(self.savedir, filename)
+            if os.path.exists(savepath):
+                raise FileExistsError('{} exists!'.format(savepath))
+            else:
+                np.save(savepath, array)
+                print('Saved {}.npy'.format(savepath))
 
 
 class DecomposeCube(Cube):
@@ -302,7 +301,7 @@ class DecomposeCube(Cube):
         self.signal = signal_model
         super()._set_data(signal_model)
 
-        print('Built signal from {} components'.format(n_components))
+        print('\nBuilt signal from {} components'.format(n_components))
 
         if plot:
             super().plot()
@@ -500,15 +499,19 @@ class ClusterCube(DecomposeCube):
 
 if __name__ == '__main__':
 
-    src_dir = '/Users/maxhipperson/Documents/Year 4/marsnet/data.nosync'
+    src_dir = '/Users/maxhipperson/Documents/Year 4/marsnet/data.nosync/raw_data'
+    dst_dir = '/Users/maxhipperson/Documents/Year 4/marsnet/data.nosync/hs_data'
 
     files = {
         'mawrth_vallis': ['frt00003bfb_07_if166j_mtr3.hdr', 'frt00003bfb.tif'],
         'oxia_planum': ['frt00009a16_07_if166j_mtr3.hdr', 'frt00009a16.tif'],
         'jezero_crater': ['frt00005c5e_07_if166j_mtr3.hdr', 'frt00005c5e.tif'],
-        'source_crater_1': ['', ''],
-        'source_crater_2': ['', '']
+        'source_crater_1': ['frt00009568_07_if163j_mtr3.hdr', 'frt00009568.tif'],
+        'source_crater_2': ['frt000083dc_07_if164j_mtr3.hdr', 'frt000083dc.tif']
     }
+
+    ##############################
+    # Choose hs image
 
     img = 'mawrth_vallis'
     # img = 'oxia_planum'
@@ -516,52 +519,131 @@ if __name__ == '__main__':
     # img = 'source_crater_1'
     # img = 'source_crater_2'
 
-    # crop = None
-    crop = 100
+    save = True
+    # save = False
+
+    ##############################
+
+    # plot = False
+    plot = True
+
+    # plot_decomposition = False
+    plot_decomposition = True
+
+    ##############################
+
+    wavelength_min = None
+    # wavelength_max = None
+
+    # wavelength limits recommended by Pete
+    # wavelength_min = 1000
+    wavelength_max = 2600
+
+    # wavelength_min = 730
+    # wavelength_min = 1000
+    # wavelength_min = 2820
+    # wavelength_min = 3500
+    # wavelength_min = 3800
+
+    # wavelength_max = 2800
+
+    ##############################
+
+    # Can't do as well as cropping the signal... todo sort?
+
+    # crop_section = True
+    crop_section = False
+
+    crop_section_min = 2800
+    # crop_section_max = 3000
+    crop_section_max = 3500
+
+    ##############################
+
+    pca = False
+    # pca = True
+
+    # build_signal = False
+    build_signal = True
+
+    n_components_model = 5
+
+    ##############################
+
+    crop = None
+    # crop = 100
     # crop = 200
     # crop = 300
     # crop = 400
 
-    if crop is None:
-        savedir = img
+    ##############################
+
+    # preprocess = None
+    # preprocess = 'rescale'
+    # preprocess='l1'
+    # preprocess='l2'
+    preprocess = 'chem'
+
+    ##############################
+    # Run script
+
+    savedir = [dst_dir, img]
+
+    if crop_section:
+        savedir.append('crop_sec_{}-{}'.format(crop_section_min, crop_section_max))
     else:
-        savedir = img + '/{}_crop'.format(crop)
+        savedir.append('wl_{}-{}'.format(wavelength_min, wavelength_max))
 
-    savedir = os.path.join('/Users/maxhipperson/Documents/Year 4/marsnet/results', savedir)
+    # todo Add dirname for removing wl section
 
-    try:
-        os.makedirs(savedir)
-    except OSError:
-        pass
+    if build_signal:
+        if pca:
+            savedir.append('pca_model_{}_components'.format(n_components_model))
+
+    if crop is not None:
+        savedir.append('crop_{}'.format(crop))
+    else:
+        savedir.append('no_crop'.format(crop))
+
+    savedir.append('preprocess_{}'.format(preprocess))
+
+    savedir = os.path.join(*savedir)
+
+    if save:
+        try:
+            os.makedirs(savedir)
+            print('Made {}'.format(savedir))
+        except OSError:
+            print(OSError('{} exists!'.format(savedir)))
+
+    # Crop the signal range in the class instantiation or
+    # remove a section from the signal with the method
 
     cube = ClusterCube(src_dir,
                        files[img][0],
                        files[img][1],
-                       # wavelength_min=730,
-                       # wavelength_min=1000,
-                       # wavelength_min=2820,
-                       # wavelength_max=2800,
+                       wavelength_min=wavelength_min,
+                       wavelength_max=wavelength_max,
                        savedir=savedir
                        )
-    cube.plot()
+    if plot:
+        cube.plot()
+
+    if crop_section:
+        cube.remove_section_from_signal(crop_section_min, crop_section_max)
+        if plot:
+            cube.plot()
+
+    if pca:
+        cube.run_pca(plot=plot_decomposition)
+        if build_signal:
+            cube.build_signal_from_decomposition(n_components_model, plot=plot_decomposition)
 
     if crop is not None:
         cube.crop_image(crop)
-        cube.plot()
+        if plot:
+            cube.plot()
 
-    cube.preprocess_spectra(
-        # process='rescale',
-        # process='l1,
-        # process='l2'
-        process='chem'
-    )
-
-    # cube.run_pca(plot=True)
-    # cube.run_ica(10, plot=True)
-    # cube.build_signal_from_decomposition(5, plot=True)
-
-    # cube.crop_image(new_size=100)
-    # cube.plot()
+    cube.preprocess_spectra(process=preprocess)
 
     cube.save_spectral_data()
-
