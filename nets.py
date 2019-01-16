@@ -26,19 +26,13 @@ class Autoencoder(nn.Module):
         return self.encoder(x)
 
 
-class Simple(Autoencoder):
+class Basic(Autoencoder):
     def __init__(self, input_shape, n_endmembers):
-        super(Simple, self).__init__(input_shape, n_endmembers)
+        super(Basic, self).__init__(input_shape, n_endmembers)
 
         # encoder
         self.encoder = nn.Sequential(
             nn.Linear(input_shape, n_endmembers),
-            nn.ReLU()
-        )
-
-        # decoder
-        self.decoder = nn.Sequential(
-            nn.Linear(n_endmembers, input_shape),
             nn.ReLU()
         )
 

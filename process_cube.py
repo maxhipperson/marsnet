@@ -79,8 +79,8 @@ n_components_model = 5
 
 ##############################
 
-# crop = None
-crop = 100
+crop = None
+# crop = 100
 # crop = 200
 # crop = 300
 # crop = 400
