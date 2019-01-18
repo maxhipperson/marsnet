@@ -35,8 +35,12 @@ def train(params, train_data, test_data, input_shape, model, writername):
 
     input_shape = input_shape
     n_endmembers = params['n_endmembers']
+    # dropout_p = params['dropout_p']  # todo <--
 
-    model = model(input_shape, n_endmembers)
+    model = model(input_shape=input_shape,
+                  n_endmembers=n_endmembers,
+                  # dropout_p=dropout_p  # todo <--
+                  )
 
     # Set model to train mode
     model.train()
@@ -61,7 +65,8 @@ def train(params, train_data, test_data, input_shape, model, writername):
     num_iters_train = len(train_loader)
     num_iters_test = len(test_loader)
 
-    writer = SummaryWriter(writername)
+    trainwriter = SummaryWriter(writername)
+    testwriter = SummaryWriter(writername + '_val')
 
     for epoch in range(num_epochs):
 
@@ -82,10 +87,10 @@ def train(params, train_data, test_data, input_shape, model, writername):
             # Updating parameters
             optimizer.step()
 
-            writer.add_scalar('train/loss/iter', loss.item(), num_iters_train * epoch + iter)
+            trainwriter.add_scalar('iter/loss_train', loss.item(), num_iters_train * epoch + iter)
             # print('\t iter {} / {} - loss {}'.format(iter, num_iters, loss.data.item()))
 
-        writer.add_scalar('train/loss/epoch', loss.item(), epoch)
+        trainwriter.add_scalar('loss', loss.item(), epoch)
         # print('epoch {} / {} - train_loss {:f}'.format(epoch + 1, num_epochs, loss.item()))
 
         #########
@@ -104,20 +109,21 @@ def train(params, train_data, test_data, input_shape, model, writername):
                 # Calculate Loss: softmax --> cross entropy loss
                 test_loss = criterion(outputs, spectra)
 
-                writer.add_scalar('test/loss/iter', test_loss.item(), num_iters_test * epoch + iter)
+                testwriter.add_scalar('iter/loss_test', test_loss.item(), num_iters_test * epoch + iter)
 
-            writer.add_scalar('test/loss/epoch', test_loss.item(), epoch)
+            testwriter.add_scalar('loss', test_loss.item(), epoch)
             print('epoch {} / {} - loss: train {:f} - test {:f}'.format(epoch + 1, num_epochs, loss.item(), test_loss.item()))
 
 
 if __name__ == '__main__':
 
     data_dir = 'data.nosync/hs_data/mawrth_vallis/wl_None-2600/no_crop/preprocess_None'
-    param_dir = 'data.nosync/nn_params/basic_autoencoder'
-    log_dir = 'data.nosync/nn_logs/basic_autoencoder'
+    param_dir = 'data.nosync/nn_params/basic_autoencoder'  # todo <--
+    log_dir = 'data.nosync/nn_logs/basic_autoencoder'  # todo <--
 
     data_files = [f for f in sorted(os.listdir(data_dir)) if f.endswith('.npy')]
     param_files = [f for f in sorted(os.listdir(param_dir))]
+    # param_files = ['paramset_5']
 
     data = {}
     for data_file in data_files:
@@ -155,7 +161,8 @@ if __name__ == '__main__':
         #     writer = writer + '_{}'.format(value)
         #     print(key, value)
 
-        model = Basic
+        model = Basic  # todo <--
+        # model = BasicDropout
 
         train(params,
               train_data=train_data,

@@ -37,6 +37,18 @@ class Basic(Autoencoder):
         )
 
 
+class BasicDropout(Autoencoder):
+    def __init__(self, input_shape, n_endmembers, dropout_p=0.5):
+        super(BasicDropout, self).__init__(input_shape, n_endmembers)
+
+        # encoder
+        self.encoder = nn.Sequential(
+            nn.Linear(input_shape, n_endmembers),
+            nn.ReLU(),
+            nn.Dropout(p=dropout_p)
+        )
+
+
 class Deep1(Autoencoder):
     def __init__(self, input_shape, n_endmembers):
         super(Deep1, self).__init__(input_shape, n_endmembers)
