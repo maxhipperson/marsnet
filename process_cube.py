@@ -87,11 +87,11 @@ crop = None
 
 ##############################
 
-# preprocess = None
+preprocess = None
 # preprocess = 'rescale'
 # preprocess='l1'
 # preprocess='l2'
-preprocess = 'chem'
+# preprocess = 'chem'
 
 ##############################
 

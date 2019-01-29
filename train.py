@@ -2,26 +2,74 @@ import os
 import json
 import numpy as np
 
-import torch
-from torch import nn
 from torch.utils.data import TensorDataset, DataLoader
+import torch.nn.functional as F
 
 from nets import *
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
-import time
 
-def train(params, train_data, test_data, input_shape, model, writername):
+
+def cosine_loss(x, y):
+
+    out = 1 - F.cosine_similarity(x, y)
+    return torch.mean(out)
+
+
+def record(value, metric, writer, valuename, writerstep):
+
+    if metric is not None:
+        metric.append(value)
+
+    if writer is not None:
+        writer.add_scalar(valuename, value, writerstep)
+
+
+def run_epoch(epoch, loader, model, optimizer, criterion, writer, mode='train'):
+
+    run_loss = []
+
+    num_iters = len(loader)
+
+    for iter, (x, _) in enumerate(tqdm(loader)):
+
+        if mode == 'train':
+            # Clear gradients w.r.t. parameters
+            optimizer.zero_grad()
+
+        # Forward pass to get output
+        outputs = model(x)
+
+        # Calculate Loss: softmax --> cross entropy loss
+        loss = criterion(outputs, x)
+
+        if mode == 'train':
+            # Getting gradients w.r.t. parameters
+            loss.backward()
+
+            # Updating parameters
+            optimizer.step()
+
+        # Add iteration loss to metric and record
+        record(loss.item(), run_loss, writer, 'iter/loss', num_iters * epoch + iter)
+
+    run_loss = np.average(np.array(run_loss))
+
+    # Add loss to metric and record
+    record(run_loss, None, writer, 'loss', epoch)
+
+    return run_loss
+
+
+def run_model(params, train_data, test_data, input_shape, model, writerpath):
 
     # Set manual seed for reproducibility e.g. when shuffling the data
     torch.manual_seed(23)
 
-    #########################
-    # Make dataset iterable #
-    #########################
+    # Make dataset iterable
 
-    batch_size = params['batch_size']
-    num_epochs = params['num_epochs']
+    batch_size = params['training']['batch_size']
+    num_epochs = params['training']['num_epochs']
 
     train_dataset = TensorDataset(torch.Tensor(train_data), torch.Tensor(train_data))
     test_dataset = TensorDataset(torch.Tensor(test_data), torch.Tensor(test_data))
@@ -29,104 +77,57 @@ def train(params, train_data, test_data, input_shape, model, writername):
     train_loader = DataLoader(train_dataset, batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size, shuffle=True)
 
-    #####################
-    # Instantiate model #
-    #####################
+    # Instantiate model
+    model = model(input_shape=input_shape, **params['model'])
 
-    input_shape = input_shape
-    n_endmembers = params['n_endmembers']
-    # dropout_p = params['dropout_p']  # todo <--
+    # Instantiate loss
+    # criterion = torch.nn.MSELoss()  # todo <--
+    criterion = cosine_loss
 
-    model = model(input_shape=input_shape,
-                  n_endmembers=n_endmembers,
-                  # dropout_p=dropout_p  # todo <--
-                  )
+    # Instantiate optimizer
+    optimizer = torch.optim.Adam(model.parameters(), **params['optimizer'])
 
-    # Set model to train mode
-    model.train()
-
-    ####################
-    # Instantiate loss #
-    ####################
-
-    criterion = torch.nn.MSELoss()
-
-    #########################
-    # iIstantiate optimizer #
-    #########################
-
-    learning_rate = params['learning_rate']
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
-    #########
-    # Train #
-    #########
-
-    num_iters_train = len(train_loader)
-    num_iters_test = len(test_loader)
-
-    trainwriter = SummaryWriter(writername)
-    testwriter = SummaryWriter(writername + '_val')
+    # Run model
+    train_writer = SummaryWriter(writerpath)
+    test_writer = SummaryWriter(writerpath + '_val')
 
     for epoch in range(num_epochs):
 
-        for iter, (spectra, _) in enumerate(train_loader):
+        model.train()
 
-            # Clear gradients w.r.t. parameters
-            optimizer.zero_grad()
+        # Train
+        loss = run_epoch(epoch=epoch, loader=train_loader, model=model, optimizer=optimizer, criterion=criterion,
+                         writer=train_writer, mode='train')
 
-            # Forward pass to get output
-            outputs = model(spectra)
-
-            # Calculate Loss: softmax --> cross entropy loss
-            loss = criterion(outputs, spectra)
-
-            # Getting gradients w.r.t. parameters
-            loss.backward()
-
-            # Updating parameters
-            optimizer.step()
-
-            trainwriter.add_scalar('iter/loss_train', loss.item(), num_iters_train * epoch + iter)
-            # print('\t iter {} / {} - loss {}'.format(iter, num_iters, loss.data.item()))
-
-        trainwriter.add_scalar('loss', loss.item(), epoch)
-        # print('epoch {} / {} - train_loss {:f}'.format(epoch + 1, num_epochs, loss.item()))
-
-        #########
-        # Test #
-        #########
-
+        # Test
         with torch.no_grad():
-
             model.eval()
 
-            for iter, (spectra, _) in enumerate(test_loader):
+            val_loss = run_epoch(epoch=epoch, loader=test_loader, model=model, optimizer=optimizer, criterion=criterion,
+                                 writer=test_writer, mode='test')
 
-                # Forward pass to get output
-                outputs = model(spectra)
+        print('Epoch: {} / {} - loss: {:f} - val_loss: {:f}'.format(epoch, num_epochs, loss, val_loss))
 
-                # Calculate Loss: softmax --> cross entropy loss
-                test_loss = criterion(outputs, spectra)
-
-                testwriter.add_scalar('iter/loss_test', test_loss.item(), num_iters_test * epoch + iter)
-
-            testwriter.add_scalar('loss', test_loss.item(), epoch)
-            print('epoch {} / {} - loss: train {:f} - test {:f}'.format(epoch + 1, num_epochs, loss.item(), test_loss.item()))
+        # Save model
+        if epoch % 5 == 0:  # todo <-- comment out to prevent saving
+            savepath = '{}/model_{}.pt'.format(os.path.split(writerpath)[0], epoch)
+            torch.save(model.state_dict(), savepath)
+            print('Saved {}'.format(savepath))
 
 
 if __name__ == '__main__':
 
     data_dir = 'data.nosync/hs_data/mawrth_vallis/wl_None-2600/no_crop/preprocess_None'
-    param_dir = 'data.nosync/nn_params/basic_autoencoder'  # todo <--
-    log_dir = 'data.nosync/nn_logs/basic_autoencoder'  # todo <--
+    param_dir = 'data.nosync/nn/Net1'  # todo <--
+    log_dir = 'data.nosync/nn_logs/basic'  # todo <--
 
     data_files = [f for f in sorted(os.listdir(data_dir)) if f.endswith('.npy')]
-    param_files = [f for f in sorted(os.listdir(param_dir))]
-    # param_files = ['paramset_5']
+    param_files = [f for f in sorted(os.listdir(param_dir)) if f.endswith('.json')]
+    # param_files = ['paramset_man']
 
     data = {}
     for data_file in data_files:
+        print(data_file)
         array = np.load(os.path.join(data_dir, data_file))
         data[data_file[:-4]] = array
         print(data_file[:-4], array.shape)
@@ -150,10 +151,17 @@ if __name__ == '__main__':
     # Load each parameter file and train the model
     for param_file in param_files:
 
+        print()
+        print('Param file: {}'.format(param_file))
+        print()
+
         with open(os.path.join(param_dir, param_file), 'r') as file:
             params = json.load(file)
 
-        writer = log_dir + '/' + param_file
+        for param, value in params.items():
+            print('{}:\t{}'.format(param, value))
+
+        writerpath = os.path.join(param_dir, param_file[:-5], 'log')
 
         # print()
         # print('Training  model with params:')
@@ -161,13 +169,12 @@ if __name__ == '__main__':
         #     writer = writer + '_{}'.format(value)
         #     print(key, value)
 
-        model = Basic  # todo <--
-        # model = BasicDropout
+        model = Net1  # todo <--
 
-        train(params,
-              train_data=train_data,
-              test_data=test_data,
-              input_shape=data['wavelengths'].shape[0],
-              model=model,
-              writername=writer)
+        run_model(params,
+                  train_data=train_data,
+                  test_data=test_data,
+                  input_shape=data['wavelengths'].shape[0],
+                  model=model,
+                  writerpath=writerpath)
 

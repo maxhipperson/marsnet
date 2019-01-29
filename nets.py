@@ -11,47 +11,52 @@ class Autoencoder(nn.Module):
 
         # decoder
         self.decoder = nn.Sequential(
-            nn.Linear(n_endmembers, input_shape),
-            nn.ReLU()
+            nn.Linear(n_endmembers, input_shape, bias=False)
         )
+
+    def encode(self, x):
+
+        out = self.encoder(x)
+
+        # Enforce that abundances sum to 1 (ASC)
+        out = out / out.sum(dim=1, keepdim=True)
+
+        return out
 
     def forward(self, x):
 
-        out = self.encoder(x)
+        out = self.encode(x)
         out = self.decoder(out)
 
         return out
 
-    def encode(self, x):
-        return self.encoder(x)
 
-
-class Basic(Autoencoder):
+class Net1(Autoencoder):
     def __init__(self, input_shape, n_endmembers):
-        super(Basic, self).__init__(input_shape, n_endmembers)
+        super(Net1, self).__init__(input_shape, n_endmembers)
 
         # encoder
         self.encoder = nn.Sequential(
             nn.Linear(input_shape, n_endmembers),
-            nn.ReLU()
+            nn.Sigmoid()
         )
 
 
-class BasicDropout(Autoencoder):
-    def __init__(self, input_shape, n_endmembers, dropout_p=0.5):
-        super(BasicDropout, self).__init__(input_shape, n_endmembers)
+class Net2(Autoencoder):
+    def __init__(self, input_shape, n_endmembers, Dropoutp):
+        super(Net2, self).__init__(input_shape, n_endmembers)
 
         # encoder
         self.encoder = nn.Sequential(
             nn.Linear(input_shape, n_endmembers),
             nn.ReLU(),
-            nn.Dropout(p=dropout_p)
+            nn.Dropout(Dropoutp)
         )
 
 
-class Deep1(Autoencoder):
+class  Net3(Autoencoder):
     def __init__(self, input_shape, n_endmembers):
-        super(Deep1, self).__init__(input_shape, n_endmembers)
+        super(Net3, self).__init__(input_shape, n_endmembers)
 
         # encoder
         self.encoder = nn.Sequential(

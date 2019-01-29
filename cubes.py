@@ -212,6 +212,8 @@ class Cube(object):
         print('{} spectra'.format(len(spectra_index_arr)))
         print('spectra_arr shape: {}'.format(spectra_arr.shape))
 
+        print(np.max(spectra_arr))
+
         self.spectra_index_arr = spectra_index_arr
         self.spectra_arr = spectra_arr
         self.mask = mask
@@ -578,11 +580,11 @@ if __name__ == '__main__':
 
     ##############################
 
-    # preprocess = None
+    preprocess = None
     # preprocess = 'rescale'
     # preprocess='l1'
     # preprocess='l2'
-    preprocess = 'chem'
+    # preprocess = 'chem'
 
     ##############################
     # Run script
@@ -603,7 +605,7 @@ if __name__ == '__main__':
     if crop is not None:
         savedir.append('crop_{}'.format(crop))
     else:
-        savedir.append('no_crop'.format(crop))
+        pass
 
     savedir.append('preprocess_{}'.format(preprocess))
 
@@ -643,6 +645,9 @@ if __name__ == '__main__':
         cube.crop_image(crop)
         if plot:
             cube.plot()
+
+    if plot:
+        cube.plot()
 
     cube.preprocess_spectra(process=preprocess)
 
