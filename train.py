@@ -8,25 +8,9 @@ from torch.utils.data import TensorDataset, DataLoader
 import torch.nn.functional as F
 
 from nets import *
+from utils import *
+
 from tensorboardX import SummaryWriter
-
-
-def load_data(data_dir, data_files):
-
-    print()
-    print('Loaded data files')
-
-    data = {}
-
-    for data_file in data_files:
-
-        array = np.load(os.path.join(data_dir, data_file))
-        data[data_file[:-4]] = array
-
-        print()
-        print('Loaded {}, array of shape: {}'.format(data_file, array.shape))
-
-    return data
 
 
 def get_train_test_split(data, test_frac=0.1):
@@ -40,23 +24,6 @@ def get_train_test_split(data, test_frac=0.1):
     test_data = temp[idx:]
 
     return train_data, test_data
-
-
-def load_params(param_dir, param_file):
-
-    print()
-    print('=' * 50)
-    print('Loaded {}'.format(param_file))
-
-    with open(os.path.join(param_dir, param_file), 'r') as file:
-        params = json.load(file)
-
-    for param, value in params.items():
-
-        print()
-        print('{}: {}'.format(param, value))
-
-    return params
 
 
 def cosine_loss(x, y):
