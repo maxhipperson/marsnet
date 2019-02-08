@@ -1,24 +1,30 @@
 import os
 from os.path import join
+from nets import *
 
 # IMG_EXTENSIONS = ('.jpg', '.png', '.PNG', '.JPG', '.JPEG', '.jpeg')
 
-### DIRECTORIES ###
+# DIRECTORIES
+##################################################
 
 PROJECT_DIR = os.path.expanduser('~/Documents/Year 4/marsnet')
-DATA_DIR = join(PROJECT_DIR, 'data.nosync')
-LOG_DIR = join(DATA_DIR, 'logs')
 
-SITE_DIR = join(DATA_DIR, '')
-# SITE_DIR = join(DATA_DIR, '')
-# SITE_DIR = join(DATA_DIR, '')
+PROJECT_DATA_DIR = join(PROJECT_DIR, 'data.nosync')
 
-### TRAINING ###z
 
-MODEL = ''
-MODEL_NAME = ''
 
-PARAMS = {}
 
-NUM_EPOCHS = 1
-NUM_ITERS = 1
+# TRAINING
+##################################################
+
+MODEL = Net1
+# MODEL = Net1Dropout
+
+# MODEL = Net2
+# MODEL = Net3
+
+# DATA_DIR = join(PROJECT_DATA_DIR, 'hs_data', 'mawrth_vallis', 'wl_None-2600', 'preprocess_None')
+DATA_DIR = join(PROJECT_DATA_DIR, 'hs_data', 'mawrth_vallis', 'wl_1000-2600', 'preprocess_None')
+
+PARAM_DIR = join(PROJECT_DATA_DIR, 'nn', 'test')
+# PARAM_DIR = join(PROJECT_DATA_DIR, 'nn', 'test2')

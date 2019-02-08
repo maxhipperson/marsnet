@@ -3,6 +3,7 @@ import math
 import random
 import json
 import os
+import config as cfg
 
 # random.seed(23)
 
@@ -11,8 +12,9 @@ def lognuniform(base, low, high, size=None):
     return base ** np.random.uniform(math.log(low, base), math.log(high, base), size)
 
 
-num_files = 16
-dst_dir = 'data.nosync/nn/Net1'
+num_files = 1
+dst_dir = cfg.PARAM_DIR
+# dst_dir = os.path.join('data.nosync', 'nn', 'Net1')
 
 try:
     os.makedirs(dst_dir)
@@ -31,8 +33,11 @@ lim['optimizer'] = {
 }
 
 lim['model'] = {
+    'n_l1': [10, 100],
+    'n_l2': [10, 100],
     'n_endmembers': [3, 4, 5],
     'dropout_p': [0.1, 0.9],
+
 }
 
 # Create parameter combinations
@@ -55,6 +60,8 @@ for i in range(num_files):
     }
 
     params['model'] = {
+        'n_l1': int(lognuniform(10, lim['model']['n_l1'][0], lim['model']['n_l1'][1])),
+        'n_l2': int(lognuniform(10, lim['model']['n_l2'][0], lim['model']['n_l2'][1])),
         'n_endmembers': random.sample(lim['model']['n_endmembers'], 1)[0],
         'dropout_p': np.random.uniform(lim['model']['dropout_p'][0], lim['model']['dropout_p'][1]),
     }

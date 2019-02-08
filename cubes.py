@@ -308,6 +308,7 @@ class DecomposeCube(Cube):
         if plot:
             super().plot()
 
+
 class ClusterCube(DecomposeCube):
 
     def rearrange_clusters_into_label_arr(self, clusters):
@@ -521,13 +522,13 @@ if __name__ == '__main__':
     # img = 'source_crater_1'
     # img = 'source_crater_2'
 
-    save = True
-    # save = False
+    # save = True
+    save = False
 
     ##############################
 
-    # plot = False
-    plot = True
+    plot = False
+    # plot = True
 
     # plot_decomposition = False
     plot_decomposition = True
@@ -562,11 +563,11 @@ if __name__ == '__main__':
 
     ##############################
 
-    pca = False
-    # pca = True
+    # pca = False
+    pca = True
 
-    # build_signal = False
-    build_signal = True
+    build_signal = False
+    # build_signal = True
 
     n_components_model = 5
 
